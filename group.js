@@ -7,6 +7,12 @@ import {
   signInWithPopup,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "labeled-clicks-state-v2";
@@ -77,17 +83,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const fullscreenImage = document.getElementById("fullscreen-image");
 
   let auth = null;
+  let db = null;
+  let currentUserId = null;
   let isAppInitialized = false;
   let editDraftButtons = [];
   let activeCardIdForEdit = null;
   let activeCardIdForEntries = null;
   let activeEntryIdForDescription = null;
 
-  const state = loadState();
+  let state = { version: STATE_VERSION, groups: [], cards: [] };
 
   try {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
+    db = getFirestore(firebaseApp);
   } catch (err) {
     if (authHint) {
       authHint.textContent =
@@ -99,24 +108,41 @@ document.addEventListener("DOMContentLoaded", () => {
   function nowIso() { return new Date().toISOString(); }
   function uid(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
-  function loadState() {
+  function getUserDocRef() {
+    if (!db || !currentUserId) return null;
+    return doc(db, "users", currentUserId);
+  }
+
+  async function loadStateFromFirestore() {
+    const userDocRef = getUserDocRef();
+    if (!userDocRef) {
+      state = { version: STATE_VERSION, groups: [], cards: [] };
+      return;
+    }
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.version === STATE_VERSION && Array.isArray(parsed.groups) && Array.isArray(parsed.cards)) {
-          return parsed;
+      const snapshot = await getDoc(userDocRef);
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data?.version === STATE_VERSION && Array.isArray(data.groups) && Array.isArray(data.cards)) {
+          state = data;
+          return;
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error loading from Firestore:", err);
     }
-    return { version: STATE_VERSION, groups: [], cards: [] };
+    state = { version: STATE_VERSION, groups: [], cards: [] };
   }
 
-  function saveState() {
+  async function saveStateToFirestore() {
+    const userDocRef = getUserDocRef();
+    if (!userDocRef) return;
     state.version = STATE_VERSION;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    try {
+      await setDoc(userDocRef, state);
+    } catch (err) {
+      console.error("Error saving to Firestore:", err);
+    }
   }
 
   function getGroup() {
@@ -165,18 +191,18 @@ document.addEventListener("DOMContentLoaded", () => {
     groupLayoutSelect.value = group.layout || "3";
     groupSortSelect.value = group.sort || "newest";
 
-    groupLayoutSelect.addEventListener("change", () => {
+    groupLayoutSelect.addEventListener("change", async () => {
       const g = getGroup();
       if (!g) return;
       g.layout = groupLayoutSelect.value;
-      saveState();
+      await saveStateToFirestore();
       renderGroupPage();
     });
-    groupSortSelect.addEventListener("change", () => {
+    groupSortSelect.addEventListener("change", async () => {
       const g = getGroup();
       if (!g) return;
       g.sort = groupSortSelect.value;
-      saveState();
+      await saveStateToFirestore();
       renderGroupPage();
     });
 
@@ -330,13 +356,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Click tracking ─────────────────────────────────────────────────────────
 
-  function registerClick(cardId, sourceType, sourceName) {
+  async function registerClick(cardId, sourceType, sourceName) {
     const card = state.cards.find((c) => c.id === cardId);
     if (!card) return;
     card.clicks += 1;
     card.updatedAt = nowIso();
     card.clickHistory.unshift({ at: nowIso(), sourceType, sourceName });
-    saveState();
+    await saveStateToFirestore();
     renderGroupPage();
     if (activeCardIdForEntries === cardId) renderEntryList();
   }
@@ -355,10 +381,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function deleteCard(cardId) {
+  async function deleteCard(cardId) {
     if (!confirm("Delete this card?")) return;
     state.cards = state.cards.filter((c) => c.id !== cardId);
-    saveState();
+    await saveStateToFirestore();
     renderGroupPage();
   }
 
@@ -448,7 +474,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editCardModal.classList.add("hidden");
   }
 
-  function saveEditedCard() {
+  async function saveEditedCard() {
     const card = state.cards.find((c) => c.id === activeCardIdForEdit);
     if (!card) return;
     const newGroupId = editCardGroupSelect.value;
@@ -461,7 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
     card.imageUrl = editCardImageInput.value.trim();
     card.buttons = editDraftButtons.map((button) => ({ ...button }));
     card.updatedAt = nowIso();
-    saveState();
+    await saveStateToFirestore();
     renderGroupPage();
     closeEditCardModal();
   }
@@ -486,7 +512,7 @@ document.addEventListener("DOMContentLoaded", () => {
     entryList.innerHTML = "";
   }
 
-  function autoSaveEntryOnBlur() {
+  async function autoSaveEntryOnBlur() {
     if (!activeCardIdForEntries) return;
     const label = entryNewLabelInput.value.trim();
     if (!label) return;
@@ -501,7 +527,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     card.updatedAt = nowIso();
     entryNewLabelInput.value = "";
-    saveState();
+    await saveStateToFirestore();
     renderEntryList();
     renderGroupPage();
   }
@@ -548,13 +574,13 @@ document.addEventListener("DOMContentLoaded", () => {
     card.entries.forEach((entry, idx) => { entry.number = idx + 1; });
   }
 
-  function deleteEntry(entryId) {
+  async function deleteEntry(entryId) {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     card.entries = card.entries.filter((e) => e.id !== entryId);
     renumberEntries(card);
-    saveState();
+    await saveStateToFirestore();
     renderEntryList();
   }
 
@@ -588,13 +614,13 @@ document.addEventListener("DOMContentLoaded", () => {
     descriptionModal.classList.remove("hidden");
   }
 
-  function saveEntryDescription() {
+  async function saveEntryDescription() {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
     if (!entry) return;
     entry.description = entryDescriptionInput.value;
-    saveState();
+    await saveStateToFirestore();
     descriptionModal.classList.add("hidden");
   }
 
@@ -634,11 +660,15 @@ document.addEventListener("DOMContentLoaded", () => {
         authHint.style.color = "#b91c1c";
       }
     });
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
+        currentUserId = user.uid;
+        await loadStateFromFirestore();
         setSignedInUI(user);
         initAppOnce();
       } else {
+        currentUserId = null;
+        state = { version: STATE_VERSION, groups: [], cards: [] };
         setSignedOutUI();
       }
     });

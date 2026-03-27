@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Labeled Clicks + Grouped Cards</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+    <header class="top-bar">
+      <div class="auth-bar hidden" id="auth-bar">
+        <div class="auth-user">
+          <div class="auth-avatar" aria-hidden="true">
+            <img id="auth-photo" alt="" class="hidden">
+            <span id="auth-avatar-fallback"><i class="fa-solid fa-user"></i></span>
+          </div>
+          <div class="auth-meta">
+            <div class="auth-name" id="auth-name">Signed in</div>
+            <div class="auth-email" id="auth-email"></div>
+          </div>
+        </div>
+        <button class="btn-secondary" id="sign-out-btn" type="button">Sign out</button>
+      </div>
+      <div class="top-actions">
+        <button id="open-create-group-modal-btn" class="primary-action" type="button">+ Create Group</button>
+        <button id="open-create-card-modal-btn" class="secondary-action" type="button">+ Create Card</button>
+        <button id="sign-in-btn" type="button">
+          <i class="fa-brands fa-google"></i>
+          Continue with Google
+        </button>
+      </div>
+    </header>
+
+    <section class="welcome" id="welcome-screen">
+      <h2>Welcome</h2>
+      <p>Sign in with Google to manage groups, cards, and labeled clicks.</p>
+      <div class="hint" id="auth-hint"></div>
+    </section>
+
+    <main class="app hidden" id="app">
+
+      <section class="panel panel-wide">
+        <h2>Groups & Cards</h2>
+        <div id="groups-container" class="groups-container"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="entry-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="entry-modal-title">Labeled Entries</h3>
+        <button id="close-entry-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="entry-controls">
+        <input id="entry-search-input" type="text" placeholder="Search labels">
+        <button id="copy-all-entries-btn" type="button">Copy Full List</button>
+      </div>
+      <div class="entry-input-wrap">
+        <input id="entry-new-label-input" type="text" placeholder="Type label then click outside to save">
+      </div>
+      <div id="entry-list" class="entry-list"></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="create-group-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Group</h3>
+        <button id="close-create-group-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="form-group">
+        <label for="group-title-input">Group Title (optional)</label>
+        <input id="group-title-input" type="text" placeholder="Work, Personal...">
+      </div>
+      <div class="form-group">
+        <label for="group-description-input">Group Description</label>
+        <textarea id="group-description-input" placeholder="Describe this group..."></textarea>
+      </div>
+      <button id="create-group-btn" type="button">Create Group</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="create-card-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Card</h3>
+        <button id="close-create-card-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="form-group">
+        <label for="card-group-select">Group (optional)</label>
+        <select id="card-group-select"></select>
+      </div>
+      <div class="form-group">
+        <label for="card-title-input">Card Title</label>
+        <input id="card-title-input" type="text" placeholder="Card title">
+      </div>
+      <div class="form-group">
+        <label for="card-type-input">Card Type</label>
+        <select id="card-type-input">
+          <option value="standard">Standard card (count clicks only)</option>
+          <option value="database">Labeled Clicks card (database style)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="card-description-input">Card Description</label>
+        <textarea id="card-description-input" placeholder="Describe this card..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="card-image-input">Card Image URL (optional)</label>
+        <input id="card-image-input" type="url" placeholder="https://...">
+      </div>
+      <div class="button-builder">
+        <h3>Additional Buttons</h3>
+        <div class="button-grid">
+          <input id="button-name-input" type="text" placeholder="Button name (RED)">
+          <select id="button-type-input">
+            <option value="label">Label click</option>
+            <option value="link">Open link</option>
+            <option value="image">Open image fullscreen</option>
+          </select>
+          <input id="button-value-input" type="text" placeholder="URL for link/image">
+          <button id="add-button-btn" type="button">Add Button</button>
+        </div>
+        <ul id="button-draft-list" class="button-draft-list"></ul>
+      </div>
+      <button id="create-card-btn" type="button">Create Card</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="edit-card-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Card</h3>
+        <button id="close-edit-card-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-group-select">Group (optional)</label>
+        <select id="edit-card-group-select"></select>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-title-input">Card Title</label>
+        <input id="edit-card-title-input" type="text" placeholder="Card title">
+      </div>
+      <div class="form-group">
+        <label for="edit-card-type-input">Card Type</label>
+        <select id="edit-card-type-input">
+          <option value="standard">Standard card (count clicks only)</option>
+          <option value="database">Labeled Clicks card (database style)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-description-input">Card Description</label>
+        <textarea id="edit-card-description-input" placeholder="Describe this card..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-image-input">Card Image URL (optional)</label>
+        <input id="edit-card-image-input" type="url" placeholder="https://...">
+      </div>
+      <div class="button-builder">
+        <h3>Additional Buttons</h3>
+        <div class="button-grid">
+          <input id="edit-button-name-input" type="text" placeholder="Button name (RED)">
+          <select id="edit-button-type-input">
+            <option value="label">Label click</option>
+            <option value="link">Open link</option>
+            <option value="image">Open image fullscreen</option>
+          </select>
+          <input id="edit-button-value-input" type="text" placeholder="URL for link/image">
+          <button id="add-edit-button-btn" type="button">Add Button</button>
+        </div>
+        <ul id="edit-button-draft-list" class="button-draft-list"></ul>
+      </div>
+      <button id="save-edit-card-btn" type="button">Save Card</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="description-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="description-modal-title">Entry Description</h3>
+        <button id="close-description-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <textarea id="entry-description-input" placeholder="Add plain text description..."></textarea>
+      <button id="save-entry-description-btn" type="button">Save Description</button>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="image-modal">
+    <div class="image-modal-content">
+      <img id="fullscreen-image" alt="Fullscreen">
+    </div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

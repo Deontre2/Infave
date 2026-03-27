@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group — Labeled Clicks</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="container">
+
+    <header class="top-bar">
+      <div class="auth-bar hidden" id="auth-bar">
+        <div class="auth-user">
+          <a href="./Index.html" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back</a>
+          <div class="auth-avatar" aria-hidden="true">
+            <img id="auth-photo" alt="" class="hidden">
+            <span id="auth-avatar-fallback"><i class="fa-solid fa-user"></i></span>
+          </div>
+          <div class="auth-meta">
+            <div class="auth-name" id="auth-name">Signed in</div>
+            <div class="auth-email" id="auth-email"></div>
+          </div>
+        </div>
+        <button class="btn-secondary" id="sign-out-btn" type="button">Sign out</button>
+      </div>
+      <div class="top-actions">
+        <button id="sign-in-btn" type="button">
+          <i class="fa-brands fa-google"></i>
+          Continue with Google
+        </button>
+      </div>
+    </header>
+
+    <section class="welcome" id="welcome-screen">
+      <h2>Sign in to view this group</h2>
+      <p>Please sign in with Google using the button above.</p>
+      <div class="hint" id="auth-hint"></div>
+    </section>
+
+    <main class="app hidden" id="app">
+
+      <section class="group-page-hero">
+        <a href="./Index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Groups</a>
+        <h1 id="group-title" class="group-page-title">Group</h1>
+        <p id="group-description" class="group-page-desc"></p>
+        <div class="group-stats-bar">
+          <span id="stat-total">Total clicks: 0</span>
+          <span id="stat-week">This week: 0</span>
+          <span id="stat-month">This month: 0</span>
+        </div>
+        <div class="group-controls">
+          <select id="group-layout-select" class="inline-btn">
+            <option value="3">3 cards/row</option>
+            <option value="2">2 cards/row</option>
+          </select>
+          <select id="group-sort-select" class="inline-btn">
+            <option value="newest">Newest</option>
+            <option value="most">Most clicked</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div id="cards-container" class="cards-grid layout-3"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Entry modal -->
+  <div class="modal hidden" id="entry-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="entry-modal-title">Labeled Entries</h3>
+        <button id="close-entry-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="entry-controls">
+        <input id="entry-search-input" type="text" placeholder="Search labels">
+        <button id="copy-all-entries-btn" type="button">Copy Full List</button>
+      </div>
+      <div class="entry-input-wrap">
+        <input id="entry-new-label-input" type="text" placeholder="Type label then click outside to save">
+      </div>
+      <div id="entry-list" class="entry-list"></div>
+    </div>
+  </div>
+
+  <!-- Edit card modal -->
+  <div class="modal hidden" id="edit-card-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Card</h3>
+        <button id="close-edit-card-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-group-select">Group (optional)</label>
+        <select id="edit-card-group-select"></select>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-title-input">Card Title</label>
+        <input id="edit-card-title-input" type="text" placeholder="Card title">
+      </div>
+      <div class="form-group">
+        <label for="edit-card-type-input">Card Type</label>
+        <select id="edit-card-type-input">
+          <option value="standard">Standard card (count clicks only)</option>
+          <option value="database">Labeled Clicks card (database style)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-description-input">Card Description</label>
+        <textarea id="edit-card-description-input" placeholder="Describe this card..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-card-image-input">Card Image URL (optional)</label>
+        <input id="edit-card-image-input" type="url" placeholder="https://...">
+      </div>
+      <div class="button-builder">
+        <h3>Additional Buttons</h3>
+        <div class="button-grid">
+          <input id="edit-button-name-input" type="text" placeholder="Button name (RED)">
+          <select id="edit-button-type-input">
+            <option value="label">Label click</option>
+            <option value="link">Open link</option>
+            <option value="image">Open image fullscreen</option>
+          </select>
+          <input id="edit-button-value-input" type="text" placeholder="URL for link/image">
+          <button id="add-edit-button-btn" type="button">Add Button</button>
+        </div>
+        <ul id="edit-button-draft-list" class="button-draft-list"></ul>
+      </div>
+      <button id="save-edit-card-btn" type="button">Save Card</button>
+    </div>
+  </div>
+
+  <!-- Description modal -->
+  <div class="modal hidden" id="description-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="description-modal-title">Entry Description</h3>
+        <button id="close-description-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <textarea id="entry-description-input" placeholder="Add plain text description..."></textarea>
+      <button id="save-entry-description-btn" type="button">Save Description</button>
+    </div>
+  </div>
+
+  <!-- Image modal -->
+  <div class="modal hidden" id="image-modal">
+    <div class="image-modal-content">
+      <img id="fullscreen-image" alt="Fullscreen">
+    </div>
+  </div>
+
+  <script type="module" src="./group.js"></script>
+</body>
+</html>

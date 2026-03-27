@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const params = new URLSearchParams(window.location.search);
   const groupId = params.get("id");
   if (!groupId) {
-    window.location.href = "./Index.html";
+    window.location.href = "./index.html";
     return;
   }
 
@@ -158,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const group = getGroup();
     if (!group) {
       appEl.classList.remove("hidden");
-      cardsContainer.innerHTML = `<p class="muted">Group not found. <a href="./Index.html">← Go back</a>.</p>`;
+      cardsContainer.innerHTML = `<p class="muted">Group not found. <a href="./index.html">← Go back</a>.</p>`;
       return;
     }
 
@@ -263,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cardsContainer.className = `cards-grid layout-${group.layout || "3"}`;
     cardsContainer.innerHTML = "";
     if (groupCards.length === 0) {
-      cardsContainer.innerHTML = `<p class="muted">No cards in this group yet. <a href="./Index.html">← Go back</a> to add cards.</p>`;
+      cardsContainer.innerHTML = `<p class="muted">No cards in this group yet. <a href="./index.html">← Go back</a> to add cards.</p>`;
     } else {
       groupCards.forEach((card) => cardsContainer.appendChild(renderCard(card)));
     }

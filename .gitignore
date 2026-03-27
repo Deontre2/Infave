@@ -7,6 +7,9 @@ pnpm-lock.yaml
 # Firebase
 .firebase/
 *.log
+serviceAccountKey.json
+*service-account*.json
+firebase-adminsdk*.json
 
 # Environment variables
 .env

@@ -95,6 +95,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let state = defaultState();
 
+  function defaultState() {
+    return { version: STATE_VERSION, groups: [], cards: [] };
+  }
+
+  function uid(prefix = "id") {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  function nowIso() {
+    return new Date().toISOString();
+  }
+
   try {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
@@ -196,6 +208,8 @@ document.addEventListener("DOMContentLoaded", () => {
     authPhoto.classList.add("hidden");
     authAvatarFallback.classList.remove("hidden");
     signInBtn.classList.remove("hidden");
+    openCreateGroupModalBtn.classList.add("hidden");
+    openCreateCardModalBtn.classList.add("hidden");
   }
 
   function setSignedInUI(user) {
@@ -203,6 +217,8 @@ document.addEventListener("DOMContentLoaded", () => {
     appEl.classList.remove("hidden");
     authBar.classList.remove("hidden");
     signInBtn.classList.add("hidden");
+    openCreateGroupModalBtn.classList.remove("hidden");
+    openCreateCardModalBtn.classList.remove("hidden");
 
     authName.textContent = user.displayName || "Signed in";
     authEmail.textContent = user.email || "";

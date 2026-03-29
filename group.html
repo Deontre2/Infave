@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Group — Labeled Clicks</title>
+  <title>Group — Group</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -43,14 +43,20 @@
 
       <section class="group-page-hero">
         <a href="./index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i> Back to Groups</a>
+        <div id="group-cover-photo" class="group-cover" style="width:100%; height:150px; background:#e5e7eb; border-radius:8px; margin-bottom:12px; background-size:cover; background-position:center;"></div>
+        <div class="group-info-section" style="background:#e5e7eb; padding:12px; border-radius:8px; margin-bottom:16px; color:#111827;">
+          <h4 style="margin:0 0 8px 0; font-size:0.9rem; color:#1f2937;">Group Info</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.85rem; color:#374151;">
+            <span><strong>Created:</strong> <span id="group-created">-</span></span>
+            <span><strong>Total:</strong> <span id="group-stat-total">0</span></span>
+            <span><strong>Week:</strong> <span id="group-stat-week">0</span></span>
+            <span><strong>Month:</strong> <span id="group-stat-month">0</span></span>
+          </div>
+        </div>
         <h1 id="group-title" class="group-page-title">Group</h1>
         <p id="group-description" class="group-page-desc"></p>
-        <div class="group-stats-bar">
-          <span id="stat-total">Total clicks: 0</span>
-          <span id="stat-week">This week: 0</span>
-          <span id="stat-month">This month: 0</span>
-        </div>
         <div class="group-controls">
+          <button id="edit-group-btn" class="inline-btn btn-secondary" type="button"><i class="fa-solid fa-pen"></i> Edit Group</button>
           <select id="group-layout-select" class="inline-btn">
             <option value="3">3 cards/row</option>
             <option value="2">2 cards/row</option>
@@ -67,6 +73,30 @@
       </section>
 
     </main>
+  </div>
+
+  <!-- Edit group modal -->
+  <div class="modal hidden" id="edit-group-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Edit Group</h3>
+        <button id="close-edit-group-modal-btn" class="danger-btn" type="button">Close</button>
+      </div>
+      <div class="form-group">
+        <label for="edit-group-title-input">Group Title</label>
+        <input id="edit-group-title-input" type="text" placeholder="Group title">
+      </div>
+      <div class="form-group">
+        <label for="edit-group-description-input">Group Description</label>
+        <textarea id="edit-group-description-input" placeholder="Describe this group..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-group-cover-input">Cover Photo (optional)</label>
+        <input id="edit-group-cover-input" type="file" accept="image/*">
+        <div id="edit-group-cover-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
+      </div>
+      <button id="save-edit-group-btn" type="button">Save Group</button>
+    </div>
   </div>
 
   <!-- Entry modal -->

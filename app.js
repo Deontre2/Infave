@@ -1,5 +1,12 @@
 import { firebaseConfig } from "./firebase-config.js";
 
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js')
+    .then(reg => console.log('Service Worker registered'))
+    .catch(err => console.log('Service Worker registration failed:', err));
+}
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth,
@@ -43,6 +50,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardTypeInput = document.getElementById("card-type-input");
   const cardDescriptionInput = document.getElementById("card-description-input");
   const cardImageInput = document.getElementById("card-image-input");
+  const cardImagePreview = document.getElementById("card-image-preview");
+  let cardImageData = "";
   const createCardBtn = document.getElementById("create-card-btn");
   const openCreateCardModalBtn = document.getElementById("open-create-card-modal-btn");
   const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
@@ -52,13 +61,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttonTypeInput = document.getElementById("button-type-input");
   const buttonValueInput = document.getElementById("button-value-input");
   const buttonDraftList = document.getElementById("button-draft-list");
-  const editCardModal = document.getElementById("edit-card-modal");
+  const cardContextMenu = document.getElementById("card-context-menu");
+  const contextEditCardBtn = document.getElementById("context-edit-card");
+  const contextDeleteCardBtn = document.getElementById("context-delete-card");
   const closeEditCardModalBtn = document.getElementById("close-edit-card-modal-btn");
+  const editCardModal = document.getElementById("edit-card-modal");
   const editCardGroupSelect = document.getElementById("edit-card-group-select");
+  const editCardTotalClicks = document.getElementById("edit-card-total-clicks");
+  const editCardWeekClicks = document.getElementById("edit-card-week-clicks");
+  const editCardMonthClicks = document.getElementById("edit-card-month-clicks");
+  const editCardCreated = document.getElementById("edit-card-created");
   const editCardTitleInput = document.getElementById("edit-card-title-input");
   const editCardTypeInput = document.getElementById("edit-card-type-input");
   const editCardDescriptionInput = document.getElementById("edit-card-description-input");
   const editCardImageInput = document.getElementById("edit-card-image-input");
+  const editCardImagePreview = document.getElementById("edit-card-image-preview");
+  let editCardImageData = ""
   const addEditButtonBtn = document.getElementById("add-edit-button-btn");
   const editButtonNameInput = document.getElementById("edit-button-name-input");
   const editButtonTypeInput = document.getElementById("edit-button-type-input");
@@ -79,6 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
+  const entryButtonStats = document.getElementById("entry-button-stats");
 
   const imageModal = document.getElementById("image-modal");
   const fullscreenImage = document.getElementById("fullscreen-image");
@@ -165,7 +184,35 @@ document.addEventListener("DOMContentLoaded", () => {
     createCardBtn.addEventListener("click", createCard);
     openCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.remove("hidden"));
     closeCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.add("hidden"));
+
+    // Card image file upload for Create Card
+    cardImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        cardImageData = ev.target.result;
+        if (cardImagePreview) {
+          cardImagePreview.innerHTML = `<img src="${cardImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
     addEditButtonBtn.addEventListener("click", addEditDraftButton);
+
+    // Card image file upload
+    editCardImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        editCardImageData = ev.target.result;
+        if (editCardImagePreview) {
+          editCardImagePreview.innerHTML = `<img src="${editCardImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
     closeEditCardModalBtn.addEventListener("click", closeEditCardModal);
     saveEditCardBtn.addEventListener("click", saveEditedCard);
     closeEntryModalBtn.addEventListener("click", closeEntryModal);
@@ -190,6 +237,28 @@ document.addEventListener("DOMContentLoaded", () => {
     editCardModal.addEventListener("click", (e) => {
       if (e.target === editCardModal) {
         closeEditCardModal();
+      }
+    });
+
+    // Context menu listeners
+    contextEditCardBtn.addEventListener("click", () => {
+      if (activeCardIdForContext) {
+        cardContextMenu.classList.add("hidden");
+        openEditCardModal(activeCardIdForContext);
+        activeCardIdForContext = null;
+      }
+    });
+    contextDeleteCardBtn.addEventListener("click", () => {
+      if (activeCardIdForContext) {
+        cardContextMenu.classList.add("hidden");
+        deleteCard(activeCardIdForContext);
+        activeCardIdForContext = null;
+      }
+    });
+    cardContextMenu.addEventListener("click", (e) => {
+      if (e.target === cardContextMenu) {
+        cardContextMenu.classList.add("hidden");
+        activeCardIdForContext = null;
       }
     });
 
@@ -391,11 +460,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = state.cards.find((c) => c.id === cardId);
     if (!card) return;
     activeCardIdForEdit = card.id;
+    editCardImageData = "";
     renderEditGroupOptions(card.groupId);
     editCardTitleInput.value = card.title || "";
     editCardTypeInput.value = card.cardType || "standard";
     editCardDescriptionInput.value = card.description || "";
-    editCardImageInput.value = card.imageUrl || "";
+    if (editCardImagePreview) {
+      if (card.imageUrl) {
+        editCardImagePreview.innerHTML = `<img src="${card.imageUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        editCardImagePreview.innerHTML = "";
+      }
+    }
+    const totalClicks = (card.clicks || 0) + card.buttons.reduce((sum, b) => sum + (b.clickCount || 0), 0);
+    if (editCardTotalClicks) editCardTotalClicks.textContent = totalClicks.toString();
+    if (editCardWeekClicks) editCardWeekClicks.textContent = clicksSince(card, 7).toString();
+    if (editCardMonthClicks) editCardMonthClicks.textContent = clicksSince(card, 30).toString();
+    if (editCardCreated && card.createdAt) editCardCreated.textContent = new Date(card.createdAt).toLocaleString();
     editDraftButtons = (card.buttons || []).map((button) => ({
       id: button.id || uid("btn"),
       name: button.name || "",
@@ -433,7 +514,7 @@ document.addEventListener("DOMContentLoaded", () => {
     card.title = title;
     card.cardType = editCardTypeInput.value;
     card.description = editCardDescriptionInput.value.trim();
-    card.imageUrl = editCardImageInput.value.trim();
+    card.imageUrl = editCardImageData || card.imageUrl;
     card.buttons = editDraftButtons.map((button) => ({ ...button }));
     card.updatedAt = nowIso();
 
@@ -456,7 +537,7 @@ document.addEventListener("DOMContentLoaded", () => {
       title,
       cardType,
       description: cardDescriptionInput.value.trim(),
-      imageUrl: cardImageInput.value.trim(),
+      imageUrl: cardImageData,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       clicks: 0,
@@ -469,13 +550,14 @@ document.addEventListener("DOMContentLoaded", () => {
     cardTypeInput.value = "standard";
     cardDescriptionInput.value = "";
     cardImageInput.value = "";
+    cardImageData = "";
+    if (cardImagePreview) cardImagePreview.innerHTML = "";
     await saveStateToFirestore();
     renderAll();
     createCardModal.classList.add("hidden");
   }
 
   async function deleteGroup(groupId) {
-    if (!confirm("Delete this group and all cards inside it?")) return;
     state.groups = state.groups.filter((g) => g.id !== groupId);
     state.cards = state.cards.filter((c) => c.groupId !== groupId);
     await saveStateToFirestore();
@@ -483,7 +565,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteCard(cardId) {
-    if (!confirm("Delete this card?")) return;
     state.cards = state.cards.filter((c) => c.id !== cardId);
     await saveStateToFirestore();
     renderAll();
@@ -528,21 +609,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (ungroupedCards.length > 0) {
-      const groupEl = document.createElement("article");
-      groupEl.className = "group-block";
-      groupEl.innerHTML = `
-        <div class="group-header">
-          <div>
-            <h3>Ungrouped</h3>
-            <p class="muted">Cards without a group</p>
-            <p class="muted">Group total clicks: ${groupTotalClicks(null)}</p>
-          </div>
-        </div>
-        <div class="cards-grid layout-3" id="cards-ungrouped"></div>
-      `;
-      groupsContainer.appendChild(groupEl);
-      const cardsTarget = groupEl.querySelector("#cards-ungrouped");
-      ungroupedCards.forEach((card) => cardsTarget.appendChild(renderCard(card)));
+      const cardsGrid = document.createElement("div");
+      cardsGrid.className = "cards-grid layout-3";
+      ungroupedCards.forEach((card) => cardsGrid.appendChild(renderCard(card)));
+      groupsContainer.appendChild(cardsGrid);
     }
     const listEl = document.createElement("div");
     listEl.className = "group-list";
@@ -559,17 +629,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="card-top">
               <strong>${escapeHtml(group.title)}</strong>
               <p class="muted">${escapeHtml(group.description || "No description")}</p>
-              <p class="muted">Clicks: ${groupTotalClicks(group.id)}</p>
+              <p class="muted stats-horizontal"><span>Week: ${groupClicksSince(group.id, 7)}</span> | <span>Month: ${groupClicksSince(group.id, 30)}</span></p>
             </div>
             <div class="group-card-actions">
-              <select data-group-layout="${group.id}" class="inline-btn">
-                <option value="3" ${group.layout === "3" ? "selected" : ""}>3 cols</option>
-                <option value="2" ${group.layout === "2" ? "selected" : ""}>2 cols</option>
-              </select>
-              <select data-group-sort="${group.id}" class="inline-btn">
-                <option value="newest" ${group.sort === "newest" ? "selected" : ""}>Newest</option>
-                <option value="most" ${group.sort === "most" ? "selected" : ""}>Most</option>
-              </select>
               <button data-delete-group="${group.id}" class="inline-btn danger-btn" type="button">Del</button>
             </div>
           </div>
@@ -582,12 +644,6 @@ document.addEventListener("DOMContentLoaded", () => {
     groupsContainer.querySelectorAll("[data-delete-group]").forEach((el) => {
       el.addEventListener("click", () => deleteGroup(el.getAttribute("data-delete-group")));
     });
-    groupsContainer.querySelectorAll("[data-group-layout]").forEach((el) => {
-      el.addEventListener("change", () => updateGroupSetting(el.getAttribute("data-group-layout"), { layout: el.value }));
-    });
-    groupsContainer.querySelectorAll("[data-group-sort]").forEach((el) => {
-      el.addEventListener("change", () => updateGroupSetting(el.getAttribute("data-group-sort"), { sort: el.value }));
-    });
     groupsContainer.querySelectorAll("[data-open-group]").forEach((el) => {
       el.addEventListener("click", (event) => {
         if (event.target.closest("button, select, input, textarea, a")) return;
@@ -596,15 +652,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function groupClicksSince(groupId, days) {
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+    return state.cards
+      .filter((c) => c.groupId === groupId)
+      .reduce((sum, card) => sum + card.clickHistory.filter((item) => new Date(item.at).getTime() >= threshold).length, 0);
+  }
+
+  let longPressTimer;
+  let activeCardIdForContext = null;
+
   function renderCard(card) {
     const el = document.createElement("article");
     el.className = "card";
+    el.setAttribute("data-card-id", card.id);
     const cardType = card.cardType || "standard";
     const isDatabaseCard = cardType === "database";
     const imageContent = card.imageUrl
       ? `<div class="card-image" style="background-image:url('${escapeAttribute(card.imageUrl)}')"></div>`
       : `<div class="card-image">${escapeHtml(card.title.charAt(0).toUpperCase())}</div>`;
-    const buttonSummary = card.buttons.map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`).join("");
+    const buttonChips = card.buttons.map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`).join("");
+    const entryCount = (card.entries || []).length;
+    const mainCount = isDatabaseCard ? `Entries ${entryCount}` : `Card ${card.clicks}`;
+    const allClicksRow = `<span class="chip">${mainCount}</span>${buttonChips}`;
     el.innerHTML = `
       ${imageContent}
       <div class="card-content">
@@ -614,21 +684,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}</p>
             <p class="muted">${escapeHtml(card.description || "No description")}</p>
           </div>
-          <button data-delete-card="${card.id}" class="inline-btn danger-btn" type="button">Delete</button>
         </div>
-        <div class="stats-row muted">
-          <span>Total: ${card.clicks}</span>
-          <span>This week: ${clicksSince(card, 7)}</span>
-          <span>This month: ${clicksSince(card, 30)}</span>
-        </div>
-        <div class="button-summary-row">${buttonSummary || '<span class="muted">No extra buttons</span>'}</div>
+        <div class="button-summary-row">${allClicksRow || '<span class="muted">No clicks</span>'}</div>
         <div class="card-action-row">
-          ${
-            isDatabaseCard
-              ? `<button data-open-entries="${card.id}" class="inline-btn" type="button">Labeled Entries</button>`
-              : ""
-          }
-          <button data-edit-card="${card.id}" class="inline-btn btn-secondary" type="button">Edit Card</button>
+          ${isDatabaseCard ? `<button data-open-entries="${card.id}" class="inline-btn" type="button">Labeled Entries</button>` : ""}
         </div>
         <div class="card-action-row" data-extra-buttons="${card.id}"></div>
       </div>
@@ -644,6 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
       row.appendChild(btn);
     });
 
+    // Click for labeled entries (database cards only)
     el.addEventListener("click", (event) => {
       if (event.target.closest("button, select, input, textarea, a")) return;
       registerClick(card.id, "card", "Card");
@@ -652,19 +712,42 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    el.querySelector("[data-delete-card]").addEventListener("click", () => deleteCard(card.id));
+    // Press and hold for context menu
+    const startLongPress = (e) => {
+      if (e.target.closest("button, select, input, textarea, a")) return;
+      longPressTimer = setTimeout(() => {
+        activeCardIdForContext = card.id;
+        cardContextMenu.classList.remove("hidden");
+      }, 500); // 500ms for long press
+    };
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    el.addEventListener("mousedown", startLongPress);
+    el.addEventListener("touchstart", startLongPress, { passive: true });
+    el.addEventListener("mouseup", cancelLongPress);
+    el.addEventListener("mouseleave", cancelLongPress);
+    el.addEventListener("touchend", cancelLongPress);
+    el.addEventListener("touchcancel", cancelLongPress);
+
     const openEntriesBtn = el.querySelector("[data-open-entries]");
     if (openEntriesBtn) {
       openEntriesBtn.addEventListener("click", () => openEntryModal(card.id));
     }
-    el.querySelector("[data-edit-card]").addEventListener("click", () => openEditCardModal(card.id));
     return el;
   }
 
   async function registerClick(cardId, sourceType, sourceName) {
     const card = state.cards.find((c) => c.id === cardId);
     if (!card) return;
-    card.clicks += 1;
+    // Only increment card.clicks for card body clicks, not button clicks
+    if (sourceType === "card") {
+      card.clicks += 1;
+    }
     card.updatedAt = nowIso();
     card.clickHistory.unshift({ at: nowIso(), sourceType, sourceName });
     await saveStateToFirestore();
@@ -679,6 +762,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!button) return;
 
     button.clickCount += 1;
+    // Track button click separately in history but don't increment card.clicks
     registerClick(cardId, "button", button.name);
 
     if (button.type === "link" && button.value) {
@@ -720,6 +804,7 @@ document.addEventListener("DOMContentLoaded", () => {
       label,
       createdAt: nowIso(),
       description: "",
+      buttons: [],
     });
     card.updatedAt = nowIso();
     entryNewLabelInput.value = "";
@@ -741,6 +826,9 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     entries.forEach((entry) => {
+      const entryButtons = (entry.buttons || []).map((b, idx) =>
+        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
+      ).join("");
       const row = document.createElement("div");
       row.className = "entry-row";
       row.innerHTML = `
@@ -749,6 +837,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="muted">${new Date(entry.createdAt).toLocaleString()}</span>
         </div>
         <div class="entry-row-actions">
+          ${entryButtons}
           <button data-copy-entry="${entry.id}" class="inline-btn" type="button">Copy</button>
           <button data-delete-entry="${entry.id}" class="inline-btn danger-btn" type="button">Delete</button>
           <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Description</button>
@@ -765,6 +854,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     entryList.querySelectorAll("[data-edit-entry-desc]").forEach((el) => {
       el.addEventListener("click", () => openDescriptionModal(el.getAttribute("data-edit-entry-desc")));
+    });
+    entryList.querySelectorAll("[data-entry-btn]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const entryId = el.getAttribute("data-entry-btn");
+        const btnIdx = parseInt(el.getAttribute("data-btn-idx"), 10);
+        registerEntryButtonClick(entryId, btnIdx);
+      });
     });
   }
 
@@ -810,7 +906,40 @@ document.addEventListener("DOMContentLoaded", () => {
     activeEntryIdForDescription = entry.id;
     descriptionModalTitle.textContent = `Description: ${entry.number}. ${entry.label}`;
     entryDescriptionInput.value = entry.description || "";
+    
+    // Display entry button stats
+    const buttonsHtml = (entry.buttons || []).map((b, idx) => 
+      `<span class="chip">${escapeHtml(b.name)}: ${b.clickCount || 0}</span>`
+    ).join("");
+    entryButtonStats.innerHTML = `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <strong>Buttons:</strong>
+        ${buttonsHtml || '<span class="muted">No buttons yet</span>'}
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <input type="text" id="new-entry-btn-name" placeholder="Button name..." style="flex:1; padding:4px 8px;">
+        <button id="add-entry-btn" class="inline-btn" type="button">Add Button</button>
+      </div>
+    `;
+    
     descriptionModal.classList.remove("hidden");
+    
+    // Add event listener for adding new button
+    setTimeout(() => {
+      const addBtn = document.getElementById("add-entry-btn");
+      if (addBtn) {
+        addBtn.addEventListener("click", () => {
+          const input = document.getElementById("new-entry-btn-name");
+          const name = input?.value?.trim();
+          if (name) {
+            addEntryButton(entryId, name);
+            input.value = "";
+            // Refresh the modal display
+            openDescriptionModal(entryId);
+          }
+        });
+      }
+    }, 0);
   }
 
   async function saveEntryDescription() {
@@ -821,6 +950,42 @@ document.addEventListener("DOMContentLoaded", () => {
     entry.description = entryDescriptionInput.value;
     await saveStateToFirestore();
     descriptionModal.classList.add("hidden");
+  }
+
+  // Entry button functions
+  async function registerEntryButtonClick(entryId, buttonIndex) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry || !entry.buttons || !entry.buttons[buttonIndex]) return;
+    entry.buttons[buttonIndex].clickCount = (entry.buttons[buttonIndex].clickCount || 0) + 1;
+    await saveStateToFirestore();
+    renderEntryList();
+  }
+
+  async function addEntryButton(entryId, buttonName) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    if (!entry.buttons) entry.buttons = [];
+    entry.buttons.push({
+      id: uid("entry-btn"),
+      name: buttonName,
+      clickCount: 0,
+    });
+    await saveStateToFirestore();
+    renderEntryList();
+  }
+
+  async function removeEntryButton(entryId, buttonIndex) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry || !entry.buttons) return;
+    entry.buttons.splice(buttonIndex, 1);
+    await saveStateToFirestore();
+    renderEntryList();
   }
 
   function escapeHtml(text) {

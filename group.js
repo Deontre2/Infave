@@ -40,12 +40,25 @@ document.addEventListener("DOMContentLoaded", () => {
   // Group hero DOM
   const groupTitleEl = document.getElementById("group-title");
   const groupDescriptionEl = document.getElementById("group-description");
-  const statTotal = document.getElementById("stat-total");
-  const statWeek = document.getElementById("stat-week");
-  const statMonth = document.getElementById("stat-month");
+  const groupCreatedEl = document.getElementById("group-created");
+  const statTotal = document.getElementById("group-stat-total");
+  const statWeek = document.getElementById("group-stat-week");
+  const statMonth = document.getElementById("group-stat-month");
   const groupLayoutSelect = document.getElementById("group-layout-select");
   const groupSortSelect = document.getElementById("group-sort-select");
   const cardsContainer = document.getElementById("cards-container");
+  const groupCoverPhoto = document.getElementById("group-cover-photo");
+  const editGroupBtn = document.getElementById("edit-group-btn");
+
+  // Edit group modal
+  const editGroupModal = document.getElementById("edit-group-modal");
+  const closeEditGroupModalBtn = document.getElementById("close-edit-group-modal-btn");
+  const editGroupTitleInput = document.getElementById("edit-group-title-input");
+  const editGroupDescriptionInput = document.getElementById("edit-group-description-input");
+  const editGroupCoverInput = document.getElementById("edit-group-cover-input");
+  const editGroupCoverPreview = document.getElementById("edit-group-cover-preview");
+  let editGroupCoverData = "";
+  const saveEditGroupBtn = document.getElementById("save-edit-group-btn");
 
   // Edit card modal
   const editCardModal = document.getElementById("edit-card-modal");
@@ -206,7 +219,27 @@ document.addEventListener("DOMContentLoaded", () => {
       renderGroupPage();
     });
 
-    // Edit card modal
+    // Edit group modal
+    editGroupBtn.addEventListener("click", openEditGroupModal);
+    closeEditGroupModalBtn.addEventListener("click", closeEditGroupModal);
+    saveEditGroupBtn.addEventListener("click", saveEditedGroup);
+    editGroupModal.addEventListener("click", (e) => {
+      if (e.target === editGroupModal) closeEditGroupModal();
+    });
+
+    // Cover photo file upload
+    editGroupCoverInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        editGroupCoverData = ev.target.result;
+        if (editGroupCoverPreview) {
+          editGroupCoverPreview.innerHTML = `<img src="${editGroupCoverData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
     addEditButtonBtn.addEventListener("click", addEditDraftButton);
     closeEditCardModalBtn.addEventListener("click", closeEditCardModal);
     saveEditCardBtn.addEventListener("click", saveEditedCard);
@@ -243,7 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function groupTotalClicks() {
     return state.cards
       .filter((c) => c.groupId === groupId)
-      .reduce((sum, card) => sum + card.clicks + card.buttons.reduce((s, b) => s + b.clickCount, 0), 0);
+      .reduce((sum, card) => sum + (card.clicks || 0) + (card.buttons || []).reduce((s, b) => s + (b.clickCount || 0), 0), 0);
   }
 
   function clicksSince(card, days) {
@@ -276,9 +309,25 @@ document.addEventListener("DOMContentLoaded", () => {
     document.title = `${group.title} — Labeled Clicks`;
     groupTitleEl.textContent = group.title;
     groupDescriptionEl.textContent = group.description || "";
-    statTotal.textContent = `Total clicks: ${groupTotalClicks()}`;
-    statWeek.textContent = `This week: ${groupClicksSince(7)}`;
-    statMonth.textContent = `This month: ${groupClicksSince(30)}`;
+    
+    // Update Group Info section
+    if (groupCreatedEl && group.createdAt) {
+      groupCreatedEl.textContent = new Date(group.createdAt).toLocaleString();
+    }
+    if (statTotal) statTotal.textContent = groupTotalClicks();
+    if (statWeek) statWeek.textContent = groupClicksSince(7);
+    if (statMonth) statMonth.textContent = groupClicksSince(30);
+    
+    // Update cover photo
+    if (groupCoverPhoto) {
+      if (group.coverUrl) {
+        groupCoverPhoto.style.backgroundImage = `url('${escapeAttribute(group.coverUrl)}')`;
+      } else {
+        groupCoverPhoto.style.backgroundImage = '';
+        groupCoverPhoto.style.background = '#e5e7eb';
+      }
+    }
+    
     groupLayoutSelect.value = group.layout || "3";
     groupSortSelect.value = group.sort || "newest";
 
@@ -386,6 +435,48 @@ document.addEventListener("DOMContentLoaded", () => {
     state.cards = state.cards.filter((c) => c.id !== cardId);
     await saveStateToFirestore();
     renderGroupPage();
+  }
+
+  // ── Edit group modal ───────────────────────────────────────────────────────
+
+  function openEditGroupModal() {
+    const group = getGroup();
+    if (!group) return;
+    editGroupTitleInput.value = group.title || "";
+    editGroupDescriptionInput.value = group.description || "";
+    editGroupCoverData = group.coverUrl || "";
+    editGroupCoverInput.value = "";
+    if (editGroupCoverPreview) {
+      if (group.coverUrl) {
+        editGroupCoverPreview.innerHTML = `<img src="${group.coverUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        editGroupCoverPreview.innerHTML = "";
+      }
+    }
+    editGroupModal.classList.remove("hidden");
+  }
+
+  function closeEditGroupModal() {
+    editGroupTitleInput.value = "";
+    editGroupDescriptionInput.value = "";
+    editGroupCoverData = "";
+    editGroupCoverInput.value = "";
+    if (editGroupCoverPreview) editGroupCoverPreview.innerHTML = "";
+    editGroupModal.classList.add("hidden");
+  }
+
+  async function saveEditedGroup() {
+    const group = getGroup();
+    if (!group) return;
+    const title = editGroupTitleInput.value.trim();
+    if (!title) { alert("Group title is required."); return; }
+    group.title = title;
+    group.description = editGroupDescriptionInput.value.trim();
+    group.coverUrl = editGroupCoverData || group.coverUrl;
+    group.updatedAt = nowIso();
+    await saveStateToFirestore();
+    renderGroupPage();
+    closeEditGroupModal();
   }
 
   // ── Edit card modal ────────────────────────────────────────────────────────

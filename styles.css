@@ -345,9 +345,40 @@ button:hover {
 
 .group-card .group-card-actions select,
 .group-card .group-card-actions button {
-  padding: 6px 10px;
-  font-size: 0.75rem;
-  min-height: 32px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  min-height: 36px;
+  min-width: 44px;
+}
+
+.group-card .group-card-actions .danger-btn {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 700;
+  border: 2px solid #b91c1c;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+}
+
+@media (max-width: 640px) {
+  .group-card .group-card-actions {
+    gap: 8px;
+    padding-top: 10px;
+  }
+  
+  .group-card .group-card-actions select,
+  .group-card .group-card-actions button {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    min-height: 44px;
+    min-width: 48px;
+  }
+  
+  .group-card .group-card-actions .danger-btn {
+    background: #dc2626;
+    font-weight: 700;
+    border: 2px solid #991b1b;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
+  }
 }
 
 .group-block {
@@ -722,7 +753,26 @@ html {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Standalone mode optimizations */
+/* ── Click Limit Styles ─────────────────────────────────────────────────── */
+
+.card-limit-reached {
+  opacity: 0.7;
+  filter: grayscale(0.6);
+}
+
+.card-limit-reached .card-image {
+  filter: grayscale(0.8);
+}
+
+.chip.limit-reached {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* ── Standalone mode optimizations ───────────────────────────────────────── */
+
 @media (display-mode: standalone) {
   body {
     padding-top: env(safe-area-inset-top);

@@ -44,11 +44,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const statTotal = document.getElementById("group-stat-total");
   const statWeek = document.getElementById("group-stat-week");
   const statMonth = document.getElementById("group-stat-month");
+  const statCards = document.getElementById("group-stat-cards");
   const groupLayoutSelect = document.getElementById("group-layout-select");
   const groupSortSelect = document.getElementById("group-sort-select");
   const cardsContainer = document.getElementById("cards-container");
   const groupCoverPhoto = document.getElementById("group-cover-photo");
   const editGroupBtn = document.getElementById("edit-group-btn");
+  const createCardBtn = document.getElementById("create-card-btn");
+
+  // Create card modal
+  const createCardModal = document.getElementById("create-card-modal");
+  const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
+  const cardTitleInput = document.getElementById("card-title-input");
+  const cardTypeInput = document.getElementById("card-type-input");
+  const cardDescriptionInput = document.getElementById("card-description-input");
+  const cardImageInput = document.getElementById("card-image-input");
+  const cardClickLimitInput = document.getElementById("card-click-limit-input");
+  const addButtonBtn = document.getElementById("add-button-btn");
+  const buttonNameInput = document.getElementById("button-name-input");
+  const buttonTypeInput = document.getElementById("button-type-input");
+  const buttonValueInput = document.getElementById("button-value-input");
+  const buttonDraftList = document.getElementById("button-draft-list");
+  const saveCardBtn = document.getElementById("save-card-btn");
+  let draftButtons = [];
 
   // Edit group modal
   const editGroupModal = document.getElementById("edit-group-modal");
@@ -57,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const editGroupDescriptionInput = document.getElementById("edit-group-description-input");
   const editGroupCoverInput = document.getElementById("edit-group-cover-input");
   const editGroupCoverPreview = document.getElementById("edit-group-cover-preview");
+  const editGroupClickLimitInput = document.getElementById("edit-group-click-limit-input");
   let editGroupCoverData = "";
   const saveEditGroupBtn = document.getElementById("save-edit-group-btn");
 
@@ -68,6 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const editCardTypeInput = document.getElementById("edit-card-type-input");
   const editCardDescriptionInput = document.getElementById("edit-card-description-input");
   const editCardImageInput = document.getElementById("edit-card-image-input");
+  const editCardClickLimitInput = document.getElementById("edit-card-click-limit-input");
   const addEditButtonBtn = document.getElementById("add-edit-button-btn");
   const editButtonNameInput = document.getElementById("edit-button-name-input");
   const editButtonTypeInput = document.getElementById("edit-button-type-input");
@@ -219,6 +239,15 @@ document.addEventListener("DOMContentLoaded", () => {
       renderGroupPage();
     });
 
+    // Create card modal
+    createCardBtn.addEventListener("click", openCreateCardModal);
+    closeCreateCardModalBtn.addEventListener("click", closeCreateCardModal);
+    addButtonBtn.addEventListener("click", addDraftButton);
+    saveCardBtn.addEventListener("click", saveCard);
+    createCardModal.addEventListener("click", (e) => {
+      if (e.target === createCardModal) closeCreateCardModal();
+    });
+
     // Edit group modal
     editGroupBtn.addEventListener("click", openEditGroupModal);
     closeEditGroupModalBtn.addEventListener("click", closeEditGroupModal);
@@ -284,6 +313,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return card.clickHistory.filter((item) => new Date(item.at).getTime() >= threshold).length;
   }
 
+  function groupCardCount() {
+    return state.cards.filter((c) => c.groupId === groupId).length;
+  }
+
   function groupClicksSince(days) {
     return state.cards
       .filter((c) => c.groupId === groupId)
@@ -314,6 +347,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (groupCreatedEl && group.createdAt) {
       groupCreatedEl.textContent = new Date(group.createdAt).toLocaleString();
     }
+    if (statCards) statCards.textContent = groupCardCount();
     if (statTotal) statTotal.textContent = groupTotalClicks();
     if (statWeek) statWeek.textContent = groupClicksSince(7);
     if (statMonth) statMonth.textContent = groupClicksSince(30);
@@ -346,28 +380,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderCard(card) {
     const el = document.createElement("article");
-    el.className = "card";
     const cardType = card.cardType || "standard";
     const isDatabaseCard = cardType === "database";
+    const isAtCardLimit = card.clickLimit && card.clicks >= card.clickLimit;
+    const isAtGroupLimit = isGroupAtLimit();
+    const isUnclickable = isAtCardLimit || isAtGroupLimit;
+    el.className = "card" + (isUnclickable ? " card-limit-reached" : "");
     const imageContent = card.imageUrl
       ? `<div class="card-image" style="background-image:url('${escapeAttribute(card.imageUrl)}')"></div>`
       : `<div class="card-image">${escapeHtml(card.title.charAt(0).toUpperCase())}</div>`;
     const buttonSummary = card.buttons
       .map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`)
       .join("");
+    const cardLimitIndicator = card.clickLimit
+      ? `<span class="chip ${isAtCardLimit ? 'limit-reached' : ''}">${card.clicks}/${card.clickLimit}</span>`
+      : '';
+    const group = getGroup();
+    const groupLimitIndicator = group?.clickLimit
+      ? `<span class="chip ${isAtGroupLimit ? 'limit-reached' : ''}">Group: ${groupTotalClicks()}/${group.clickLimit}</span>`
+      : '';
     el.innerHTML = `
       ${imageContent}
       <div class="card-content">
         <div class="card-top">
           <div>
             <strong>${escapeHtml(card.title)}</strong>
-            <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}</p>
+            <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}${isUnclickable ? ' <span style="color:#dc2626;font-weight:bold;">(LIMIT REACHED)</span>' : ''}</p>
             <p class="muted">${escapeHtml(card.description || "No description")}</p>
           </div>
           <button data-delete-card="${card.id}" class="inline-btn danger-btn" type="button">Delete</button>
         </div>
         <div class="stats-row muted">
-          <span>Total: ${card.clicks}</span>
+          <span>Total: ${card.clicks}${cardLimitIndicator}${groupLimitIndicator}</span>
           <span>This week: ${clicksSince(card, 7)}</span>
           <span>This month: ${clicksSince(card, 30)}</span>
         </div>
@@ -392,6 +436,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     el.addEventListener("click", (event) => {
       if (event.target.closest("button, select, input, textarea, a")) return;
+      const group = getGroup();
+      if (group?.clickLimit && groupTotalClicks() >= group.clickLimit) {
+        alert("This group has reached its total click limit. All cards are unclickable.");
+        return;
+      }
+      if (card.clickLimit && card.clicks >= card.clickLimit) {
+        alert("This card has reached its click limit and is unclickable.");
+        return;
+      }
       registerClick(card.id, "card", "Card");
       if (isDatabaseCard) openEntryModal(card.id);
     });
@@ -431,10 +484,102 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function deleteCard(cardId) {
-    if (!confirm("Delete this card?")) return;
     state.cards = state.cards.filter((c) => c.id !== cardId);
     await saveStateToFirestore();
     renderGroupPage();
+  }
+
+  // ── Create card modal functions ─────────────────────────────────────────────
+
+  function openCreateCardModal() {
+    draftButtons = [];
+    cardTitleInput.value = "";
+    cardTypeInput.value = "standard";
+    cardDescriptionInput.value = "";
+    cardImageInput.value = "";
+    cardClickLimitInput.value = "";
+    buttonNameInput.value = "";
+    buttonTypeInput.value = "label";
+    buttonValueInput.value = "";
+    renderDraftButtons();
+    createCardModal.classList.remove("hidden");
+  }
+
+  function closeCreateCardModal() {
+    createCardModal.classList.add("hidden");
+    draftButtons = [];
+  }
+
+  function addDraftButton() {
+    const name = buttonNameInput.value.trim();
+    const type = buttonTypeInput.value;
+    const value = buttonValueInput.value.trim();
+    if (!name) { alert("Button name is required."); return; }
+    if (draftButtons.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
+      alert("A button with this name already exists on this card.");
+      return;
+    }
+    if ((type === "link" || type === "image") && !value) {
+      alert("Please add a URL value for link/image button.");
+      return;
+    }
+    draftButtons.push({ id: uid("btn"), name, type, value, clickCount: 0 });
+    buttonNameInput.value = "";
+    buttonValueInput.value = "";
+    renderDraftButtons();
+  }
+
+  function removeDraftButton(buttonId) {
+    draftButtons = draftButtons.filter((x) => x.id !== buttonId);
+    renderDraftButtons();
+  }
+
+  function renderDraftButtons() {
+    buttonDraftList.innerHTML = "";
+    draftButtons.forEach((btn) => {
+      const li = document.createElement("li");
+      li.className = "chip-row";
+      li.innerHTML = `
+        <span class="chip">${escapeHtml(btn.name)} (${escapeHtml(btn.type)})</span>
+        <button class="inline-btn danger-btn" data-remove-draft-id="${btn.id}" type="button">Remove</button>
+      `;
+      buttonDraftList.appendChild(li);
+    });
+    buttonDraftList.querySelectorAll("[data-remove-draft-id]").forEach((el) => {
+      el.addEventListener("click", () => removeDraftButton(el.getAttribute("data-remove-draft-id")));
+    });
+  }
+
+  async function saveCard() {
+    const title = cardTitleInput.value.trim();
+    if (!title) { alert("Card title is required."); return; }
+    // Check for duplicate card title in this group
+    const existingCard = state.cards.find((c) => c.groupId === groupId && c.title.toLowerCase() === title.toLowerCase());
+    if (existingCard) {
+      alert("A card with this name already exists in this group.");
+      return;
+    }
+    const clickLimitValue = cardClickLimitInput.value.trim();
+    const clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
+    const newCard = {
+      id: uid("card"),
+      groupId: groupId,
+      title,
+      cardType: cardTypeInput.value,
+      description: cardDescriptionInput.value.trim(),
+      imageUrl: cardImageInput.value.trim(),
+      clickLimit,
+      clicks: 0,
+      clickHistory: [],
+      buttons: draftButtons.map((button) => ({ ...button })),
+      entries: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    state.cards.push(newCard);
+    await saveStateToFirestore();
+    renderGroupPage();
+    closeCreateCardModal();
   }
 
   // ── Edit group modal ───────────────────────────────────────────────────────
@@ -446,6 +591,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editGroupDescriptionInput.value = group.description || "";
     editGroupCoverData = group.coverUrl || "";
     editGroupCoverInput.value = "";
+    editGroupClickLimitInput.value = group.clickLimit || "";
     if (editGroupCoverPreview) {
       if (group.coverUrl) {
         editGroupCoverPreview.innerHTML = `<img src="${group.coverUrl}" style="width:100%; height:100%; object-fit:cover;">`;
@@ -461,6 +607,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editGroupDescriptionInput.value = "";
     editGroupCoverData = "";
     editGroupCoverInput.value = "";
+    editGroupClickLimitInput.value = "";
     if (editGroupCoverPreview) editGroupCoverPreview.innerHTML = "";
     editGroupModal.classList.add("hidden");
   }
@@ -470,16 +617,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!group) return;
     const title = editGroupTitleInput.value.trim();
     if (!title) { alert("Group title is required."); return; }
+    const clickLimitValue = editGroupClickLimitInput.value.trim();
     group.title = title;
     group.description = editGroupDescriptionInput.value.trim();
     group.coverUrl = editGroupCoverData || group.coverUrl;
+    group.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
     group.updatedAt = nowIso();
     await saveStateToFirestore();
     renderGroupPage();
     closeEditGroupModal();
   }
 
-  // ── Edit card modal ────────────────────────────────────────────────────────
+  function isGroupAtLimit() {
+    const group = getGroup();
+    if (!group || !group.clickLimit) return false;
+    return groupTotalClicks() >= group.clickLimit;
+  }
 
   function renderEditGroupOptions(selectedGroupId = "") {
     editCardGroupSelect.innerHTML = "";
@@ -502,6 +655,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const type = editButtonTypeInput.value;
     const value = editButtonValueInput.value.trim();
     if (!name) { alert("Button name is required."); return; }
+    if (editDraftButtons.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
+      alert("A button with this name already exists on this card.");
+      return;
+    }
     if ((type === "link" || type === "image") && !value) {
       alert("Please add a URL value for link/image button.");
       return;
@@ -542,6 +699,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editCardTypeInput.value = card.cardType || "standard";
     editCardDescriptionInput.value = card.description || "";
     editCardImageInput.value = card.imageUrl || "";
+    editCardClickLimitInput.value = card.clickLimit || "";
     editDraftButtons = (card.buttons || []).map((button) => ({
       id: button.id || uid("btn"),
       name: button.name || "",
@@ -571,11 +729,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const newGroupId = editCardGroupSelect.value;
     const title = editCardTitleInput.value.trim();
     if (!title) { alert("Card title is required."); return; }
+    // Check for duplicate card title in the target group (excluding current card)
+    const existingCard = state.cards.find((c) => c.id !== activeCardIdForEdit && c.groupId === (newGroupId || null) && c.title.toLowerCase() === title.toLowerCase());
+    if (existingCard) {
+      alert("A card with this name already exists in the target group.");
+      return;
+    }
+    const clickLimitValue = editCardClickLimitInput.value.trim();
     card.groupId = newGroupId || null;
     card.title = title;
     card.cardType = editCardTypeInput.value;
     card.description = editCardDescriptionInput.value.trim();
     card.imageUrl = editCardImageInput.value.trim();
+    card.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
     card.buttons = editDraftButtons.map((button) => ({ ...button }));
     card.updatedAt = nowIso();
     await saveStateToFirestore();

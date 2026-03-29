@@ -52,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardImageInput = document.getElementById("card-image-input");
   const cardImagePreview = document.getElementById("card-image-preview");
   let cardImageData = "";
+  const cardClickLimitInput = document.getElementById("card-click-limit-input");
   const createCardBtn = document.getElementById("create-card-btn");
   const openCreateCardModalBtn = document.getElementById("open-create-card-modal-btn");
   const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
@@ -76,7 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const editCardDescriptionInput = document.getElementById("edit-card-description-input");
   const editCardImageInput = document.getElementById("edit-card-image-input");
   const editCardImagePreview = document.getElementById("edit-card-image-preview");
-  let editCardImageData = ""
+  let editCardImageData = "";
+  const editCardClickLimitInput = document.getElementById("edit-card-click-limit-input");
   const addEditButtonBtn = document.getElementById("add-edit-button-btn");
   const editButtonNameInput = document.getElementById("edit-button-name-input");
   const editButtonTypeInput = document.getElementById("edit-button-type-input");
@@ -88,6 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryModalTitle = document.getElementById("entry-modal-title");
   const closeEntryModalBtn = document.getElementById("close-entry-modal-btn");
   const entrySearchInput = document.getElementById("entry-search-input");
+  const entrySortSelect = document.getElementById("entry-sort-select");
   const copyAllEntriesBtn = document.getElementById("copy-all-entries-btn");
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
@@ -264,6 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
     entrySearchInput.addEventListener("input", renderEntryList);
+    entrySortSelect.addEventListener("change", renderEntryList);
 
     renderAll();
   }
@@ -465,6 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editCardTitleInput.value = card.title || "";
     editCardTypeInput.value = card.cardType || "standard";
     editCardDescriptionInput.value = card.description || "";
+    editCardClickLimitInput.value = card.clickLimit || "";
     if (editCardImagePreview) {
       if (card.imageUrl) {
         editCardImagePreview.innerHTML = `<img src="${card.imageUrl}" style="width:100%; height:100%; object-fit:cover;">`;
@@ -497,6 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
     editButtonNameInput.value = "";
     editButtonTypeInput.value = "label";
     editButtonValueInput.value = "";
+    editCardClickLimitInput.value = "";
     editCardModal.classList.add("hidden");
   }
 
@@ -515,6 +521,8 @@ document.addEventListener("DOMContentLoaded", () => {
     card.cardType = editCardTypeInput.value;
     card.description = editCardDescriptionInput.value.trim();
     card.imageUrl = editCardImageData || card.imageUrl;
+    const clickLimitValue = editCardClickLimitInput.value.trim();
+    card.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
     card.buttons = editDraftButtons.map((button) => ({ ...button }));
     card.updatedAt = nowIso();
 
@@ -531,6 +539,7 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Card title is required.");
       return;
     }
+    const clickLimitValue = cardClickLimitInput.value.trim();
     state.cards.unshift({
       id: uid("card"),
       groupId: groupId || null,
@@ -538,6 +547,7 @@ document.addEventListener("DOMContentLoaded", () => {
       cardType,
       description: cardDescriptionInput.value.trim(),
       imageUrl: cardImageData,
+      clickLimit: clickLimitValue ? parseInt(clickLimitValue, 10) : null,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       clicks: 0,
@@ -551,6 +561,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cardDescriptionInput.value = "";
     cardImageInput.value = "";
     cardImageData = "";
+    cardClickLimitInput.value = "";
     if (cardImagePreview) cardImagePreview.innerHTML = "";
     await saveStateToFirestore();
     renderAll();
@@ -621,6 +632,7 @@ document.addEventListener("DOMContentLoaded", () => {
       listEl.innerHTML += `<p class="muted">No groups yet. Create one to organize cards.</p>`;
     } else {
       state.groups.forEach((group) => {
+        const cardCount = state.cards.filter((c) => c.groupId === group.id).length;
         const row = document.createElement("article");
         row.className = "card group-card";
         row.setAttribute("data-open-group", group.id);
@@ -629,7 +641,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="card-top">
               <strong>${escapeHtml(group.title)}</strong>
               <p class="muted">${escapeHtml(group.description || "No description")}</p>
-              <p class="muted stats-horizontal"><span>Week: ${groupClicksSince(group.id, 7)}</span> | <span>Month: ${groupClicksSince(group.id, 30)}</span></p>
+              <p class="muted stats-horizontal"><span>Cards: ${cardCount}</span> | <span>Week: ${groupClicksSince(group.id, 7)}</span> | <span>Month: ${groupClicksSince(group.id, 30)}</span></p>
             </div>
             <div class="group-card-actions">
               <button data-delete-group="${group.id}" class="inline-btn danger-btn" type="button">Del</button>
@@ -664,24 +676,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderCard(card) {
     const el = document.createElement("article");
-    el.className = "card";
-    el.setAttribute("data-card-id", card.id);
     const cardType = card.cardType || "standard";
     const isDatabaseCard = cardType === "database";
+    const isAtLimit = card.clickLimit && card.clicks >= card.clickLimit;
+    el.className = "card" + (isAtLimit ? " card-limit-reached" : "");
+    el.setAttribute("data-card-id", card.id);
     const imageContent = card.imageUrl
       ? `<div class="card-image" style="background-image:url('${escapeAttribute(card.imageUrl)}')"></div>`
       : `<div class="card-image">${escapeHtml(card.title.charAt(0).toUpperCase())}</div>`;
     const buttonChips = card.buttons.map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`).join("");
     const entryCount = (card.entries || []).length;
     const mainCount = isDatabaseCard ? `Entries ${entryCount}` : `Card ${card.clicks}`;
-    const allClicksRow = `<span class="chip">${mainCount}</span>${buttonChips}`;
+    const limitIndicator = card.clickLimit
+      ? `<span class="chip ${isAtLimit ? 'limit-reached' : ''}">${card.clicks}/${card.clickLimit}</span>`
+      : '';
+    const allClicksRow = `<span class="chip">${mainCount}</span>${limitIndicator}${buttonChips}`;
     el.innerHTML = `
       ${imageContent}
       <div class="card-content">
         <div class="card-top">
           <div>
             <strong>${escapeHtml(card.title)}</strong>
-            <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}</p>
+            <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}${isAtLimit ? ' <span style="color:#dc2626;font-weight:bold;">(LIMIT REACHED)</span>' : ''}</p>
             <p class="muted">${escapeHtml(card.description || "No description")}</p>
           </div>
         </div>
@@ -706,6 +722,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Click for labeled entries (database cards only)
     el.addEventListener("click", (event) => {
       if (event.target.closest("button, select, input, textarea, a")) return;
+      if (card.clickLimit && card.clicks >= card.clickLimit) {
+        alert("This card has reached its click limit and is unclickable.");
+        return;
+      }
       registerClick(card.id, "card", "Card");
       if (isDatabaseCard) {
         openEntryModal(card.id);
@@ -818,8 +838,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     const q = entrySearchInput.value.trim().toLowerCase();
-    const entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
-
+    const sortMode = entrySortSelect.value;
+    let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    
+    // Sort entries based on selected sort mode
+    if (sortMode === "oldest") {
+      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortMode === "most-clicks") {
+      entries.sort((a, b) => {
+        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        return bClicks - aClicks;
+      });
+    }
+    
     entryList.innerHTML = "";
     if (entries.length === 0) {
       entryList.innerHTML = `<p class="muted">No entries found.</p>`;

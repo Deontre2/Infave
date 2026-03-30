@@ -73,6 +73,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardContextMenu = document.getElementById("card-context-menu");
   const contextEditCardBtn = document.getElementById("context-edit-card");
   const contextDeleteCardBtn = document.getElementById("context-delete-card");
+
+  // Group context menu
+  const groupContextMenu = document.getElementById("group-context-menu");
+  const contextEditGroupBtn = document.getElementById("context-edit-group");
+  const contextDeleteGroupBtn = document.getElementById("context-delete-group");
+
+  // Edit group modal
+  const editGroupModal = document.getElementById("edit-group-modal");
+  const closeEditGroupModalBtn = document.getElementById("close-edit-group-modal-btn");
+  const editGroupTitleInput = document.getElementById("edit-group-title-input");
+  const editGroupDescriptionInput = document.getElementById("edit-group-description-input");
+  const editGroupCoverInput = document.getElementById("edit-group-cover-input");
+  const editGroupCoverPreview = document.getElementById("edit-group-cover-preview");
+  const editGroupClickLimitInput = document.getElementById("edit-group-click-limit-input");
+  const saveEditGroupBtn = document.getElementById("save-edit-group-btn");
+  let editGroupCoverData = "";
   const closeEditCardModalBtn = document.getElementById("close-edit-card-modal-btn");
   const editCardModal = document.getElementById("edit-card-modal");
   const addEditButtonModal = document.getElementById("add-edit-button-modal");
@@ -135,6 +151,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeCardIdForEdit = null;
   let activeCardIdForEntries = null;
   let activeEntryIdForDescription = null;
+  let activeGroupIdForEdit = null;
+  let activeGroupIdForContext = null;
 
   let state = defaultState();
 
@@ -195,6 +213,69 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.error("Error saving to Firestore:", err);
     }
+  }
+
+  const searchBar = document.getElementById("search-bar");
+  const searchInput = document.getElementById("search-input");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
+  let currentSearchQuery = "";
+
+  function performSearch(query) {
+    currentSearchQuery = query.toLowerCase().trim();
+    if (currentSearchQuery) {
+      renderSearchResults();
+    } else {
+      renderAll();
+    }
+  }
+
+  function cardMatchesSearch(card, query) {
+    if (!query) return true;
+    const searchTerms = query.toLowerCase().split(/\s+/);
+    const cardName = (card.title || "").toLowerCase();
+    const cardClicks = String(card.clicks || 0);
+    const entryCount = String((card.entries || []).length);
+    const buttonNames = (card.buttons || []).map(b => (b.name || "").toLowerCase()).join(" ");
+    const buttonClicks = (card.buttons || []).map(b => String(b.clickCount || 0)).join(" ");
+    
+    // Check if card properties match
+    const cardMatches = searchTerms.every(term =>
+      cardName.includes(term) ||
+      cardClicks === term ||
+      entryCount === term ||
+      buttonNames.includes(term) ||
+      buttonClicks === term
+    );
+    
+    if (cardMatches) return true;
+    
+    // Check if any entries match the search
+    if (card.entries && card.entries.length > 0) {
+      const hasMatchingEntry = card.entries.some(entry => {
+        const entryLabel = (entry.label || "").toLowerCase();
+        const entryDesc = (entry.description || "").toLowerCase();
+        return searchTerms.some(term => 
+          entryLabel.includes(term) || 
+          entryDesc.includes(term)
+        );
+      });
+      if (hasMatchingEntry) return true;
+    }
+    
+    return false;
+  }
+
+  function renderSearchResults() {
+    groupsContainer.innerHTML = "";
+    const matchingCards = state.cards.filter(card => cardMatchesSearch(card, currentSearchQuery));
+    if (matchingCards.length === 0) {
+      groupsContainer.innerHTML = `<p class="muted">No cards found matching "${escapeHtml(currentSearchQuery)}".</p>`;
+      return;
+    }
+    const cardsGrid = document.createElement("div");
+    cardsGrid.className = "cards-grid layout-3";
+    matchingCards.forEach((card) => cardsGrid.appendChild(renderCard(card)));
+    groupsContainer.appendChild(cardsGrid);
   }
 
   function initAppOnce() {
@@ -407,6 +488,33 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       saveEditedCard();
     }, { passive: false });
+
+    // Edit group modal listeners
+    closeEditGroupModalBtn.addEventListener("click", closeEditGroupModal);
+    closeEditGroupModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      closeEditGroupModal();
+    }, { passive: false });
+
+    saveEditGroupBtn.addEventListener("click", saveEditedGroup);
+    saveEditGroupBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      saveEditedGroup();
+    }, { passive: false });
+
+    // Group cover image upload
+    editGroupCoverInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        editGroupCoverData = ev.target.result;
+        if (editGroupCoverPreview) {
+          editGroupCoverPreview.innerHTML = `<img src="${editGroupCoverData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
     
     closeEntryModalBtn.addEventListener("click", closeEntryModal);
     closeEntryModalBtn.addEventListener("touchstart", (e) => {
@@ -474,9 +582,38 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    // Group context menu listeners
+    contextEditGroupBtn.addEventListener("click", () => {
+      if (activeGroupIdForContext) {
+        groupContextMenu.classList.add("hidden");
+        openEditGroupModal(activeGroupIdForContext);
+        activeGroupIdForContext = null;
+      }
+    });
+    contextDeleteGroupBtn.addEventListener("click", () => {
+      if (activeGroupIdForContext) {
+        groupContextMenu.classList.add("hidden");
+        deleteGroup(activeGroupIdForContext);
+        activeGroupIdForContext = null;
+      }
+    });
+    groupContextMenu.addEventListener("click", (e) => {
+      if (e.target === groupContextMenu) {
+        groupContextMenu.classList.add("hidden");
+        activeGroupIdForContext = null;
+      }
+    });
+
     entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
     entrySearchInput.addEventListener("input", renderEntryList);
     entrySortSelect.addEventListener("change", renderEntryList);
+
+    // Search functionality
+    searchInput.addEventListener("input", (e) => performSearch(e.target.value));
+    clearSearchBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      performSearch("");
+    });
 
     renderAll();
   }
@@ -513,6 +650,7 @@ document.addEventListener("DOMContentLoaded", () => {
     signInBtn.classList.add("hidden");
     openCreateGroupModalBtn.classList.remove("hidden");
     openCreateCardModalBtn.classList.remove("hidden");
+    searchBar.classList.remove("hidden");
 
     authName.textContent = user.displayName || "Signed in";
     authEmail.textContent = user.email || "";
@@ -534,6 +672,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function createGroup() {
+    document.title = "Group";
     const title = groupTitleInput.value.trim() || "Untitled Group";
     const description = groupDescriptionInput.value.trim();
     state.groups.unshift({
@@ -841,13 +980,6 @@ document.addEventListener("DOMContentLoaded", () => {
     createCardModal.classList.add("hidden");
   }
 
-  async function deleteGroup(groupId) {
-    state.groups = state.groups.filter((g) => g.id !== groupId);
-    state.cards = state.cards.filter((c) => c.groupId !== groupId);
-    await saveStateToFirestore();
-    renderAll();
-  }
-
   async function deleteCard(cardId) {
     state.cards = state.cards.filter((c) => c.id !== cardId);
     await saveStateToFirestore();
@@ -899,42 +1031,77 @@ document.addEventListener("DOMContentLoaded", () => {
       groupsContainer.appendChild(cardsGrid);
     }
     const listEl = document.createElement("div");
-    listEl.className = "group-list";
-    listEl.innerHTML = `<h3>Groups</h3>`;
+    listEl.className = "cards-grid layout-3";
+    
+    // Add heading outside the grid
+    const headingEl = document.createElement("h3");
+    headingEl.textContent = "Groups";
+    groupsContainer.appendChild(headingEl);
+    
     if (state.groups.length === 0) {
-      listEl.innerHTML += `<p class="muted">No groups yet. Create one to organize cards.</p>`;
+      const noGroupsMsg = document.createElement("p");
+      noGroupsMsg.className = "muted";
+      noGroupsMsg.textContent = "No groups yet. Create one to organize cards.";
+      groupsContainer.appendChild(noGroupsMsg);
     } else {
       state.groups.forEach((group) => {
-        const cardCount = state.cards.filter((c) => c.groupId === group.id).length;
+        const groupCards = state.cards.filter((c) => c.groupId === group.id);
+        const cardCount = groupCards.length;
+        const totalClicks = groupCards.reduce((sum, c) => sum + c.clicks, 0);
+        const totalEntries = groupCards.reduce((sum, c) => sum + (c.entries?.length || 0), 0);
         const row = document.createElement("article");
         row.className = "card group-card";
-        row.setAttribute("data-open-group", group.id);
+        row.setAttribute("data-group-id", group.id);
+        const imageContent = group.coverUrl
+          ? `<div class="card-image" style="background-image:url('${escapeAttribute(group.coverUrl)}')"></div>`
+          : `<div class="card-image">${escapeHtml(group.title.charAt(0).toUpperCase())}</div>`;
         row.innerHTML = `
+          ${imageContent}
           <div class="card-content">
-            <div class="card-top">
+            <div>
               <strong>${escapeHtml(group.title)}</strong>
               <p class="muted">${escapeHtml(group.description || "No description")}</p>
-              <p class="muted stats-horizontal"><span>Cards: ${cardCount}</span> | <span>Week: ${groupClicksSince(group.id, 7)}</span> | <span>Month: ${groupClicksSince(group.id, 30)}</span></p>
             </div>
-            <div class="group-card-actions">
-              <button data-delete-group="${group.id}" class="inline-btn danger-btn" type="button">Del</button>
+            <div class="button-summary-row" style="margin-top:auto;">
+              <span class="chip">Cards: ${cardCount}</span>
+              <span class="chip">Total: ${totalClicks}</span>
+              <span class="chip">Entries: ${totalEntries}</span>
             </div>
           </div>
         `;
+
+        // Press and hold for context menu
+        const startLongPress = (e) => {
+          if (e.target.closest("button, select, input, textarea, a")) return;
+          longPressTimer = setTimeout(() => {
+            activeGroupIdForContext = group.id;
+            groupContextMenu.classList.remove("hidden");
+          }, 500);
+        };
+        const cancelLongPress = () => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+        };
+
+        row.addEventListener("mousedown", startLongPress);
+        row.addEventListener("touchstart", startLongPress, { passive: true });
+        row.addEventListener("mouseup", cancelLongPress);
+        row.addEventListener("mouseleave", cancelLongPress);
+        row.addEventListener("touchend", cancelLongPress);
+        row.addEventListener("touchcancel", cancelLongPress);
+
+        // Click to open group
+        row.addEventListener("click", (event) => {
+          if (event.target.closest("button, select, input, textarea, a")) return;
+          window.location.href = `./group.html?id=${group.id}`;
+        });
+
         listEl.appendChild(row);
       });
     }
     groupsContainer.appendChild(listEl);
-
-    groupsContainer.querySelectorAll("[data-delete-group]").forEach((el) => {
-      el.addEventListener("click", () => deleteGroup(el.getAttribute("data-delete-group")));
-    });
-    groupsContainer.querySelectorAll("[data-open-group]").forEach((el) => {
-      el.addEventListener("click", (event) => {
-        if (event.target.closest("button, select, input, textarea, a")) return;
-        window.location.href = `./group.html?id=${el.getAttribute("data-open-group")}`;
-      });
-    });
   }
 
   function groupClicksSince(groupId, days) {
@@ -946,6 +1113,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let longPressTimer;
   let activeCardIdForContext = null;
+
+  function openEditGroupModal(groupId) {
+    const group = state.groups.find((g) => g.id === groupId);
+    if (!group) return;
+    activeGroupIdForEdit = group.id;
+    editGroupTitleInput.value = group.title || "";
+    editGroupDescriptionInput.value = group.description || "";
+    editGroupCoverData = group.coverUrl || "";
+    editGroupCoverInput.value = "";
+    editGroupClickLimitInput.value = group.clickLimit || "";
+    if (editGroupCoverPreview) {
+      if (group.coverUrl) {
+        editGroupCoverPreview.innerHTML = `<img src="${group.coverUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        editGroupCoverPreview.innerHTML = "";
+      }
+    }
+    editGroupModal.classList.remove("hidden");
+  }
+
+  function closeEditGroupModal() {
+    activeGroupIdForEdit = null;
+    editGroupTitleInput.value = "";
+    editGroupDescriptionInput.value = "";
+    editGroupCoverData = "";
+    editGroupCoverInput.value = "";
+    editGroupClickLimitInput.value = "";
+    if (editGroupCoverPreview) editGroupCoverPreview.innerHTML = "";
+    editGroupModal.classList.add("hidden");
+  }
+
+  async function saveEditedGroup() {
+    const group = state.groups.find((g) => g.id === activeGroupIdForEdit);
+    if (!group) return;
+    const title = editGroupTitleInput.value.trim();
+    if (!title) { alert("Group title is required."); return; }
+    const clickLimitValue = editGroupClickLimitInput.value.trim();
+    group.title = title;
+    group.description = editGroupDescriptionInput.value.trim();
+    group.coverUrl = editGroupCoverData || group.coverUrl;
+    group.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
+    group.updatedAt = nowIso();
+    await saveStateToFirestore();
+    renderAll();
+    closeEditGroupModal();
+  }
+
+  async function deleteGroup(groupId) {
+    if (!confirm("Are you sure you want to delete this group?")) return;
+    state.groups = state.groups.filter((g) => g.id !== groupId);
+    state.cards = state.cards.filter((c) => c.groupId !== groupId);
+    await saveStateToFirestore();
+    renderAll();
+  }
 
   function renderCard(card) {
     const el = document.createElement("article");

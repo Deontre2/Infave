@@ -46,6 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const statWeek = document.getElementById("group-stat-week");
   const statMonth = document.getElementById("group-stat-month");
   const statCards = document.getElementById("group-stat-cards");
+  const statEntries = document.getElementById("group-stat-entries");
   const groupLayoutSelect = document.getElementById("group-layout-select");
   const groupSortSelect = document.getElementById("group-sort-select");
   const cardsContainer = document.getElementById("cards-container");
@@ -147,6 +148,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Card context menu
   const cardContextMenu = document.getElementById("card-context-menu");
+
+  // Search DOM
+  const searchBar = document.getElementById("search-bar");
+  const searchInput = document.getElementById("search-input");
+  const clearSearchBtn = document.getElementById("clear-search-btn");
+  let currentSearchQuery = "";
 
   let auth = null;
   let db = null;
@@ -253,6 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
       authAvatarFallback.classList.remove("hidden");
     }
     signInBtn.classList.add("hidden");
+    searchBar.classList.remove("hidden");
   }
 
   // Helper function for mobile-compatible event handling
@@ -556,6 +564,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target === cardContextMenu) cardContextMenu.classList.add("hidden");
     });
 
+    // Search functionality
+    searchInput.addEventListener("input", (e) => performSearch(e.target.value));
+    clearSearchBtn.addEventListener("click", () => {
+      searchInput.value = "";
+      performSearch("");
+    });
+
     renderGroupPage();
   }
 
@@ -576,6 +591,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return state.cards.filter((c) => c.groupId === groupId).length;
   }
 
+  function groupTotalEntries() {
+    return state.cards
+      .filter((c) => c.groupId === groupId && c.cardType === "database")
+      .reduce((sum, card) => sum + (card.entries || []).length, 0);
+  }
+
   function groupClicksSince(days) {
     return state.cards
       .filter((c) => c.groupId === groupId)
@@ -587,18 +608,44 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mode === "most") {
       copy.sort((a, b) => b.clicks - a.clicks);
     } else {
-      copy.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+      copy.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
     return copy;
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  function performSearch(query) {
+    currentSearchQuery = query.toLowerCase().trim();
+    if (currentSearchQuery) {
+      renderGroupPage();
+    } else {
+      renderGroupPage();
+    }
+  }
+
+  function cardMatchesSearch(card, query) {
+    if (!query) return true;
+    const searchTerms = query.toLowerCase().split(/\s+/);
+    const cardName = (card.title || "").toLowerCase();
+    const cardClicks = String(card.clicks || 0);
+    const entryCount = String((card.entries || []).length);
+    const buttonNames = (card.buttons || []).map(b => (b.name || "").toLowerCase()).join(" ");
+    const buttonClicks = (card.buttons || []).map(b => String(b.clickCount || 0)).join(" ");
+    return searchTerms.every(term =>
+      cardName.includes(term) ||
+      cardClicks === term ||
+      entryCount === term ||
+      buttonNames.includes(term) ||
+      buttonClicks === term
+    );
+  }
+
   function renderGroupPage() {
     const group = getGroup();
     if (!group) return;
 
-    document.title = `${group.title} — Labeled Clicks`;
+    document.title = `${group.title} — Group`;
     groupTitleEl.textContent = group.title;
     groupDescriptionEl.textContent = group.description || "";
     
@@ -607,6 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
       groupCreatedEl.textContent = new Date(group.createdAt).toLocaleString();
     }
     if (statCards) statCards.textContent = groupCardCount();
+    if (statEntries) statEntries.textContent = groupTotalEntries();
     if (statTotal) statTotal.textContent = groupTotalClicks();
     if (statWeek) statWeek.textContent = groupClicksSince(7);
     if (statMonth) statMonth.textContent = groupClicksSince(30);
@@ -626,13 +674,17 @@ document.addEventListener("DOMContentLoaded", () => {
     groupSortSelect.value = group.sort || "newest";
 
     const groupCards = sortCards(
-      state.cards.filter((c) => c.groupId === groupId),
+      state.cards.filter((c) => c.groupId === groupId && cardMatchesSearch(c, currentSearchQuery)),
       group.sort
     );
     cardsContainer.className = `cards-grid layout-${group.layout || "3"}`;
     cardsContainer.innerHTML = "";
     if (groupCards.length === 0) {
-      cardsContainer.innerHTML = `<p class="muted">No cards in this group yet. <a href="./index.html">← Go back</a> to add cards.</p>`;
+      if (currentSearchQuery) {
+        cardsContainer.innerHTML = `<p class="muted">No cards found matching "${escapeHtml(currentSearchQuery)}".</p>`;
+      } else {
+        cardsContainer.innerHTML = `<p class="muted">No cards in this group yet. <a href="./index.html">← Go back</a> to add cards.</p>`;
+      }
     } else {
       groupCards.forEach((card) => cardsContainer.appendChild(renderCard(card)));
     }
@@ -747,7 +799,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const button = card.buttons.find((b) => b.id === buttonId);
     if (!button) return;
     button.clickCount += 1;
-    registerClick(cardId, "button", button.name);
+    card.updatedAt = nowIso();
+    // Only track button click, don't increment card.clicks
+    saveStateToFirestore();
+    renderGroupPage();
     if (button.type === "link" && button.value) window.open(button.value, "_blank", "noopener,noreferrer");
     if (button.type === "image" && button.value) {
       fullscreenImage.src = button.value;

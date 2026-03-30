@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b0b10">
-  <title>Group — Group</title>
+  <title>Group — Infave</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="./styles.css?v=4">
 </head>
@@ -19,7 +19,6 @@
     <header class="top-bar">
       <div class="auth-bar hidden" id="auth-bar">
         <div class="auth-user">
-          <a href="./index.html" class="back-link"><i class="fa-solid fa-arrow-left"></i> Back</a>
           <div class="auth-avatar" aria-hidden="true">
             <img id="auth-photo" alt="" class="hidden">
             <span id="auth-avatar-fallback"><i class="fa-solid fa-user"></i></span>
@@ -30,6 +29,10 @@
           </div>
         </div>
         <button class="btn-secondary" id="sign-out-btn" type="button">Sign out</button>
+      </div>
+      <div class="search-bar hidden" id="search-bar">
+        <input type="text" id="search-input" placeholder="Search cards by name, clicks, entries, or button..." class="search-input">
+        <button id="clear-search-btn" class="clear-search-btn" type="button"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="top-actions">
         <button id="sign-in-btn" type="button">
@@ -49,11 +52,12 @@
 
       <section class="group-page-hero">
         <div id="group-cover-photo" class="group-cover hidden" style="width:100%; height:150px; background-size:cover; background-position:center; border-radius:8px; margin-bottom:12px;"></div>
-        <div class="group-info-section" style="background:#e5e7eb; padding:12px; border-radius:8px; margin-bottom:16px; color:#111827;">
-          <h4 style="margin:0 0 8px 0; font-size:0.9rem; color:#1f2937;">Group Info</h4>
-          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.85rem; color:#374151;">
+        <div class="group-info-section" style="background:var(--card); padding:12px; border-radius:8px; margin-bottom:16px; color:var(--foreground); border:1px solid var(--border);">
+          <h4 style="margin:0 0 8px 0; font-size:0.9rem; color:var(--foreground);">Group Info</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.85rem; color:var(--muted);">
             <span><strong>Created:</strong> <span id="group-created">-</span></span>
             <span><strong>Cards:</strong> <span id="group-stat-cards">0</span></span>
+            <span><strong>Entries:</strong> <span id="group-stat-entries">0</span></span>
             <span><strong>Total:</strong> <span id="group-stat-total">0</span></span>
             <span><strong>Week:</strong> <span id="group-stat-week">0</span></span>
             <span><strong>Month:</strong> <span id="group-stat-month">0</span></span>
@@ -67,7 +71,7 @@
           <button id="edit-group-btn" class="inline-btn btn-secondary" type="button"><i class="fa-solid fa-pen"></i> Edit Group</button>
           <select id="group-layout-select" class="inline-btn">
             <option value="3">3 cards/row</option>
-            <option value="2">2 cards/row</option>
+            <option value="4">4 cards/row</option>
           </select>
           <select id="group-sort-select" class="inline-btn">
             <option value="newest">Newest</option>
@@ -200,6 +204,11 @@
       </div>
       <div class="entry-controls">
         <input id="entry-search-input" type="text" placeholder="Search labels">
+        <select id="entry-sort-select" class="inline-btn">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="most-clicks">Most Clicks</option>
+        </select>
         <button id="copy-all-entries-btn" type="button">Copy Full List</button>
       </div>
       <div class="entry-input-wrap">

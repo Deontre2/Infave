@@ -1,4 +1,4 @@
-const CACHE_NAME = 'infave-v1';
+const CACHE_NAME = 'infave-v3';
 const urlsToCache = [
   '/Infave/',
   '/Infave/index.html',
@@ -34,13 +34,22 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
-          return response;
+        // Update cache with fresh response
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, clone);
+          });
         }
-        return fetch(event.request).catch(() => {
-          // If fetch fails, return a simple offline message for HTML requests
+        return response;
+      })
+      .catch(() => {
+        // Fallback to cache when offline
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          // If not in cache and offline, return offline message for HTML
           if (event.request.destination === 'document') {
             return new Response('Offline - Please check your connection', {
               headers: { 'Content-Type': 'text/html' }

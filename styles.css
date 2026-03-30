@@ -102,6 +102,82 @@ body {
   border: 1px solid var(--border);
 }
 
+/* ── Search Bar ───────────────────────────────────────────────────────── */
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 400px;
+  margin: 0 12px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  min-height: 36px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+}
+
+.search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.clear-search-btn {
+  width: auto;
+  padding: 8px 12px;
+  min-height: 36px;
+  min-width: 36px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-search-btn:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+@media (max-width: 768px) {
+  .search-bar {
+    max-width: 200px;
+    margin: 0 8px;
+  }
+  
+  .search-input {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .search-bar {
+    order: 3;
+    max-width: 100%;
+    width: 100%;
+    margin: 8px 0 0 0;
+  }
+  
+  .top-bar {
+    flex-wrap: wrap;
+  }
+}
+
 .hidden {
   display: none !important;
 }
@@ -371,7 +447,6 @@ button:active {
 
 .group-card {
   cursor: pointer;
-  aspect-ratio: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -379,6 +454,19 @@ button:active {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   transition: all 0.2s ease;
+  min-height: 320px;
+}
+
+.group-card .card-image {
+  height: 130px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.6) 0%, rgba(139, 92, 246, 0.6) 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background-position: center;
+  background-size: cover;
 }
 
 .group-card:hover {
@@ -391,21 +479,20 @@ button:active {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 10px;
 }
 
 .group-card .card-top {
-  flex: 1;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
-  color: #fff;
-  border-radius: calc(var(--radius) - 4px);
-  padding: 12px;
-  gap: 4px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-align: left;
+  background: transparent;
+  color: var(--foreground);
+  border-radius: 0;
+  padding: 0;
+  gap: 8px;
 }
 
 .group-card .card-top strong {
@@ -415,7 +502,7 @@ button:active {
 }
 
 .group-card .card-top .muted {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--muted-foreground);
   font-size: 0.8rem;
 }
 
@@ -528,7 +615,8 @@ button:active {
 }
 
 .cards-grid.layout-3,
-.cards-grid.layout-2 {
+.cards-grid.layout-2,
+.cards-grid.layout-4 {
   grid-template-columns: 1fr;
 }
 
@@ -542,6 +630,9 @@ button:active {
   .cards-grid.layout-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .cards-grid.layout-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .card {
@@ -550,6 +641,9 @@ button:active {
   overflow: hidden;
   background: var(--card);
   transition: all 0.2s ease;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
@@ -570,6 +664,9 @@ button:active {
 
 .card-content {
   padding: 10px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .card-top {
@@ -629,7 +726,7 @@ button:active {
 
 .entry-controls {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 8px;
 }
 

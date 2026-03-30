@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const authEmail = document.getElementById("auth-email");
   const authPhoto = document.getElementById("auth-photo");
   const authAvatarFallback = document.getElementById("auth-avatar-fallback");
+  const loadingScreen = document.getElementById("loading-screen");
 
   // Group hero DOM
   const groupTitleEl = document.getElementById("group-title");
@@ -50,7 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardsContainer = document.getElementById("cards-container");
   const groupCoverPhoto = document.getElementById("group-cover-photo");
   const editGroupBtn = document.getElementById("edit-group-btn");
-  const createCardBtn = document.getElementById("create-card-btn");
+  const createCardBtn = document.getElementById("open-create-card-modal-btn");
 
   // Create card modal
   const createCardModal = document.getElementById("create-card-modal");
@@ -59,13 +60,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardTypeInput = document.getElementById("card-type-input");
   const cardDescriptionInput = document.getElementById("card-description-input");
   const cardImageInput = document.getElementById("card-image-input");
+  const cardImagePreview = document.getElementById("card-image-preview");
+  let cardImageData = "";
   const cardClickLimitInput = document.getElementById("card-click-limit-input");
+  const cardGroupSelect = document.getElementById("card-group-select");
+  const addButtonModal = document.getElementById("add-button-modal");
+  const openAddButtonModalBtn = document.getElementById("open-add-button-modal-btn");
+  const buttonLinkGroup = document.getElementById("button-link-group");
+  const buttonImageGroup = document.getElementById("button-image-group");
   const addButtonBtn = document.getElementById("add-button-btn");
   const buttonNameInput = document.getElementById("button-name-input");
   const buttonTypeInput = document.getElementById("button-type-input");
   const buttonValueInput = document.getElementById("button-value-input");
+  const buttonImageInput = document.getElementById("button-image-input");
+  const buttonImagePreview = document.getElementById("button-image-preview");
+  let buttonImageData = "";
   const buttonDraftList = document.getElementById("button-draft-list");
-  const saveCardBtn = document.getElementById("save-card-btn");
+  const saveCardBtn = document.getElementById("create-card-btn");
   let draftButtons = [];
 
   // Edit group modal
@@ -87,11 +98,30 @@ document.addEventListener("DOMContentLoaded", () => {
   const editCardTypeInput = document.getElementById("edit-card-type-input");
   const editCardDescriptionInput = document.getElementById("edit-card-description-input");
   const editCardImageInput = document.getElementById("edit-card-image-input");
+  const editCardImagePreview = document.getElementById("edit-card-image-preview");
+  let editCardImageData = "";
   const editCardClickLimitInput = document.getElementById("edit-card-click-limit-input");
+  const editCardTotalClicks = document.getElementById("edit-card-total-clicks");
+  const editCardWeekClicks = document.getElementById("edit-card-week-clicks");
+  const editCardMonthClicks = document.getElementById("edit-card-month-clicks");
+  const editCardCreated = document.getElementById("edit-card-created");
+  const editCardButtonStats = document.getElementById("edit-card-button-stats");
+  const editCardClicksRow = document.getElementById("edit-card-clicks-row");
+  const editCardWeekRow = document.getElementById("edit-card-week-row");
+  const editCardMonthRow = document.getElementById("edit-card-month-row");
+  const editCardEntriesRow = document.getElementById("edit-card-entries-row");
+  const editCardEntriesCount = document.getElementById("edit-card-entries-count");
+  const addEditButtonModal = document.getElementById("add-edit-button-modal");
+  const openAddEditButtonModalBtn = document.getElementById("open-add-edit-button-modal-btn");
+  const editButtonLinkGroup = document.getElementById("edit-button-link-group");
+  const editButtonImageGroup = document.getElementById("edit-button-image-group");
   const addEditButtonBtn = document.getElementById("add-edit-button-btn");
   const editButtonNameInput = document.getElementById("edit-button-name-input");
   const editButtonTypeInput = document.getElementById("edit-button-type-input");
   const editButtonValueInput = document.getElementById("edit-button-value-input");
+  const editButtonImageInput = document.getElementById("edit-button-image-input");
+  const editButtonImagePreview = document.getElementById("edit-button-image-preview");
+  let editButtonImageData = "";
   const editButtonDraftList = document.getElementById("edit-button-draft-list");
   const saveEditCardBtn = document.getElementById("save-edit-card-btn");
 
@@ -115,6 +145,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const imageModal = document.getElementById("image-modal");
   const fullscreenImage = document.getElementById("fullscreen-image");
 
+  // Card context menu
+  const cardContextMenu = document.getElementById("card-context-menu");
+
   let auth = null;
   let db = null;
   let currentUserId = null;
@@ -123,6 +156,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeCardIdForEdit = null;
   let activeCardIdForEntries = null;
   let activeEntryIdForDescription = null;
+  let longPressTimer = null;
+  let activeCardIdForContext = null;
 
   let state = { version: STATE_VERSION, groups: [], cards: [] };
 
@@ -182,7 +217,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return state.groups.find((g) => g.id === groupId) || null;
   }
 
+  function setLoadingUI() {
+    welcomeScreen.classList.add("hidden");
+    appEl.classList.add("hidden");
+    authBar.classList.add("hidden");
+    signInBtn.classList.add("hidden");
+    if (loadingScreen) loadingScreen.classList.remove("hidden");
+  }
+
   function setSignedOutUI() {
+    if (loadingScreen) loadingScreen.classList.add("hidden");
     welcomeScreen.classList.remove("hidden");
     appEl.classList.add("hidden");
     authBar.classList.add("hidden");
@@ -194,6 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setSignedInUI(user) {
+    if (loadingScreen) loadingScreen.classList.add("hidden");
     welcomeScreen.classList.add("hidden");
     appEl.classList.remove("hidden");
     authBar.classList.remove("hidden");
@@ -208,6 +253,18 @@ document.addEventListener("DOMContentLoaded", () => {
       authAvatarFallback.classList.remove("hidden");
     }
     signInBtn.classList.add("hidden");
+  }
+
+  // Helper function for mobile-compatible event handling
+  function addMobileEventListener(element, handler) {
+    if (!element) return;
+    // Use pointer events for better mobile compatibility
+    element.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      handler(e);
+    });
+    // Fallback to click for older browsers
+    element.addEventListener("click", handler);
   }
 
   function initAppOnce() {
@@ -239,19 +296,112 @@ document.addEventListener("DOMContentLoaded", () => {
       renderGroupPage();
     });
 
-    // Create card modal
+    // Create card modal - mobile compatible
     createCardBtn.addEventListener("click", openCreateCardModal);
+    createCardBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      openCreateCardModal();
+    }, { passive: false });
+    
     closeCreateCardModalBtn.addEventListener("click", closeCreateCardModal);
-    addButtonBtn.addEventListener("click", addDraftButton);
-    saveCardBtn.addEventListener("click", saveCard);
+    closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      closeCreateCardModal();
+    }, { passive: false });
+    
+    addButtonBtn.addEventListener("click", () => {
+      addDraftButton();
+      addButtonModal.classList.add("hidden");
+    });
+    addButtonBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      addDraftButton();
+      addButtonModal.classList.add("hidden");
+    }, { passive: false });
+
+    // Open add button sub-modal
+    openAddButtonModalBtn.addEventListener("click", () => {
+      buttonNameInput.value = "";
+      buttonTypeInput.value = "label";
+      buttonValueInput.value = "";
+      buttonImageData = "";
+      buttonImageInput.value = "";
+      buttonImagePreview.innerHTML = "";
+      buttonLinkGroup.style.display = "block";
+      buttonImageGroup.style.display = "none";
+      addButtonModal.classList.remove("hidden");
+    });
+    openAddButtonModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      buttonNameInput.value = "";
+      buttonTypeInput.value = "label";
+      buttonValueInput.value = "";
+      buttonImageData = "";
+      buttonImageInput.value = "";
+      buttonImagePreview.innerHTML = "";
+      buttonLinkGroup.style.display = "block";
+      buttonImageGroup.style.display = "none";
+      addButtonModal.classList.remove("hidden");
+    }, { passive: false });
+
+    // Close add button sub-modal
+    addButtonModal.addEventListener("click", (e) => {
+      if (e.target === addButtonModal) addButtonModal.classList.add("hidden");
+    });
+
+    // Button type change handler - show/hide file input for image
+    buttonTypeInput.addEventListener("change", () => {
+      if (buttonTypeInput.value === "image") {
+        buttonLinkGroup.style.display = "none";
+        buttonImageGroup.style.display = "block";
+      } else if (buttonTypeInput.value === "link") {
+        buttonLinkGroup.style.display = "block";
+        buttonImageGroup.style.display = "none";
+      } else {
+        buttonLinkGroup.style.display = "none";
+        buttonImageGroup.style.display = "none";
+      }
+    });
+
+    // Button image file upload
+    buttonImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        buttonImageData = ev.target.result;
+        buttonImagePreview.innerHTML = `<img src="${buttonImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    saveCardBtn.addEventListener("click", createCard);
+    saveCardBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      createCard();
+    }, { passive: false });
     createCardModal.addEventListener("click", (e) => {
       if (e.target === createCardModal) closeCreateCardModal();
     });
 
     // Edit group modal
     editGroupBtn.addEventListener("click", openEditGroupModal);
+    editGroupBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      openEditGroupModal();
+    }, { passive: false });
+    
     closeEditGroupModalBtn.addEventListener("click", closeEditGroupModal);
+    closeEditGroupModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      closeEditGroupModal();
+    }, { passive: false });
+    
     saveEditGroupBtn.addEventListener("click", saveEditedGroup);
+    saveEditGroupBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      saveEditedGroup();
+    }, { passive: false });
     editGroupModal.addEventListener("click", (e) => {
       if (e.target === editGroupModal) closeEditGroupModal();
     });
@@ -269,16 +419,99 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       reader.readAsDataURL(file);
     });
-    addEditButtonBtn.addEventListener("click", addEditDraftButton);
+    addEditButtonBtn.addEventListener("click", () => {
+      addEditDraftButton();
+      addEditButtonModal.classList.add("hidden");
+    });
+    addEditButtonBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      addEditDraftButton();
+      addEditButtonModal.classList.add("hidden");
+    }, { passive: false });
+
+    // Open add edit button sub-modal
+    openAddEditButtonModalBtn.addEventListener("click", () => {
+      editButtonNameInput.value = "";
+      editButtonTypeInput.value = "label";
+      editButtonValueInput.value = "";
+      editButtonImageData = "";
+      editButtonImageInput.value = "";
+      editButtonImagePreview.innerHTML = "";
+      editButtonLinkGroup.style.display = "block";
+      editButtonImageGroup.style.display = "none";
+      addEditButtonModal.classList.remove("hidden");
+    });
+    openAddEditButtonModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      editButtonNameInput.value = "";
+      editButtonTypeInput.value = "label";
+      editButtonValueInput.value = "";
+      editButtonImageData = "";
+      editButtonImageInput.value = "";
+      editButtonImagePreview.innerHTML = "";
+      editButtonLinkGroup.style.display = "block";
+      editButtonImageGroup.style.display = "none";
+      addEditButtonModal.classList.remove("hidden");
+    }, { passive: false });
+
+    // Close add edit button sub-modal
+    addEditButtonModal.addEventListener("click", (e) => {
+      if (e.target === addEditButtonModal) addEditButtonModal.classList.add("hidden");
+    });
+
+    // Edit button type change handler - show/hide file input for image
+    editButtonTypeInput.addEventListener("change", () => {
+      if (editButtonTypeInput.value === "image") {
+        editButtonLinkGroup.style.display = "none";
+        editButtonImageGroup.style.display = "block";
+      } else if (editButtonTypeInput.value === "link") {
+        editButtonLinkGroup.style.display = "block";
+        editButtonImageGroup.style.display = "none";
+      } else {
+        editButtonLinkGroup.style.display = "none";
+        editButtonImageGroup.style.display = "none";
+      }
+    });
+
+    // Edit button image file upload
+    editButtonImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        editButtonImageData = ev.target.result;
+        editButtonImagePreview.innerHTML = `<img src="${editButtonImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+      };
+      reader.readAsDataURL(file);
+    });
+    
     closeEditCardModalBtn.addEventListener("click", closeEditCardModal);
+    closeEditCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      closeEditCardModal();
+    }, { passive: false });
+    
     saveEditCardBtn.addEventListener("click", saveEditedCard);
+    saveEditCardBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      saveEditedCard();
+    }, { passive: false });
     editCardModal.addEventListener("click", (e) => {
       if (e.target === editCardModal) closeEditCardModal();
     });
 
     // Entry modal
     closeEntryModalBtn.addEventListener("click", closeEntryModal);
+    closeEntryModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      closeEntryModal();
+    }, { passive: false });
+    
     copyAllEntriesBtn.addEventListener("click", copyAllEntries);
+    copyAllEntriesBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      copyAllEntries();
+    }, { passive: false });
     entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
     entrySearchInput.addEventListener("input", renderEntryList);
     entryModal.addEventListener("click", (e) => {
@@ -287,7 +520,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Description modal
     closeDescriptionModalBtn.addEventListener("click", () => descriptionModal.classList.add("hidden"));
+    closeDescriptionModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      descriptionModal.classList.add("hidden");
+    }, { passive: false });
+    
     saveEntryDescriptionBtn.addEventListener("click", saveEntryDescription);
+    saveEntryDescriptionBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      saveEntryDescription();
+    }, { passive: false });
     descriptionModal.addEventListener("click", (e) => {
       if (e.target === descriptionModal) descriptionModal.classList.add("hidden");
     });
@@ -295,6 +537,23 @@ document.addEventListener("DOMContentLoaded", () => {
     // Image modal
     imageModal.addEventListener("click", (e) => {
       if (e.target === imageModal) imageModal.classList.add("hidden");
+    });
+
+    // Card context menu
+    document.getElementById("context-edit-card").addEventListener("click", () => {
+      if (activeCardIdForContext) {
+        openEditCardModal(activeCardIdForContext);
+        cardContextMenu.classList.add("hidden");
+      }
+    });
+    document.getElementById("context-delete-card").addEventListener("click", () => {
+      if (activeCardIdForContext) {
+        deleteCard(activeCardIdForContext);
+        cardContextMenu.classList.add("hidden");
+      }
+    });
+    cardContextMenu.addEventListener("click", (e) => {
+      if (e.target === cardContextMenu) cardContextMenu.classList.add("hidden");
     });
 
     renderGroupPage();
@@ -356,9 +615,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (groupCoverPhoto) {
       if (group.coverUrl) {
         groupCoverPhoto.style.backgroundImage = `url('${escapeAttribute(group.coverUrl)}')`;
+        groupCoverPhoto.classList.remove("hidden");
       } else {
         groupCoverPhoto.style.backgroundImage = '';
-        groupCoverPhoto.style.background = '#e5e7eb';
+        groupCoverPhoto.classList.add("hidden");
       }
     }
     
@@ -386,19 +646,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const isAtGroupLimit = isGroupAtLimit();
     const isUnclickable = isAtCardLimit || isAtGroupLimit;
     el.className = "card" + (isUnclickable ? " card-limit-reached" : "");
+    el.setAttribute("data-card-id", card.id);
     const imageContent = card.imageUrl
       ? `<div class="card-image" style="background-image:url('${escapeAttribute(card.imageUrl)}')"></div>`
       : `<div class="card-image">${escapeHtml(card.title.charAt(0).toUpperCase())}</div>`;
-    const buttonSummary = card.buttons
-      .map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`)
-      .join("");
-    const cardLimitIndicator = card.clickLimit
+    const buttonChips = card.buttons.map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`).join("");
+    const entryCount = (card.entries || []).length;
+    const mainCount = isDatabaseCard ? `Entries ${entryCount}` : `Card ${card.clicks}`;
+    const limitIndicator = card.clickLimit
       ? `<span class="chip ${isAtCardLimit ? 'limit-reached' : ''}">${card.clicks}/${card.clickLimit}</span>`
       : '';
-    const group = getGroup();
-    const groupLimitIndicator = group?.clickLimit
-      ? `<span class="chip ${isAtGroupLimit ? 'limit-reached' : ''}">Group: ${groupTotalClicks()}/${group.clickLimit}</span>`
-      : '';
+    const allClicksRow = `<span class="chip">${mainCount}</span>${limitIndicator}${buttonChips}`;
     el.innerHTML = `
       ${imageContent}
       <div class="card-content">
@@ -408,17 +666,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}${isUnclickable ? ' <span style="color:#dc2626;font-weight:bold;">(LIMIT REACHED)</span>' : ''}</p>
             <p class="muted">${escapeHtml(card.description || "No description")}</p>
           </div>
-          <button data-delete-card="${card.id}" class="inline-btn danger-btn" type="button">Delete</button>
         </div>
-        <div class="stats-row muted">
-          <span>Total: ${card.clicks}${cardLimitIndicator}${groupLimitIndicator}</span>
-          <span>This week: ${clicksSince(card, 7)}</span>
-          <span>This month: ${clicksSince(card, 30)}</span>
-        </div>
-        <div class="button-summary-row">${buttonSummary || '<span class="muted">No extra buttons</span>'}</div>
+        <div class="button-summary-row">${allClicksRow || '<span class="muted">No clicks</span>'}</div>
         <div class="card-action-row">
           ${isDatabaseCard ? `<button data-open-entries="${card.id}" class="inline-btn" type="button">Labeled Entries</button>` : ""}
-          <button data-edit-card="${card.id}" class="inline-btn btn-secondary" type="button">Edit Card</button>
         </div>
         <div class="card-action-row" data-extra-buttons="${card.id}"></div>
       </div>
@@ -434,25 +685,46 @@ document.addEventListener("DOMContentLoaded", () => {
       row.appendChild(btn);
     });
 
+    // Press and hold for context menu
+    const startLongPress = (e) => {
+      if (e.target.closest("button, select, input, textarea, a")) return;
+      longPressTimer = setTimeout(() => {
+        activeCardIdForContext = card.id;
+        cardContextMenu.classList.remove("hidden");
+      }, 500);
+    };
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    el.addEventListener("mousedown", startLongPress);
+    el.addEventListener("touchstart", startLongPress, { passive: true });
+    el.addEventListener("mouseup", cancelLongPress);
+    el.addEventListener("mouseleave", cancelLongPress);
+    el.addEventListener("touchend", cancelLongPress);
+    el.addEventListener("touchcancel", cancelLongPress);
+
+    const openEntriesBtn = el.querySelector("[data-open-entries]");
+    if (openEntriesBtn) {
+      openEntriesBtn.addEventListener("click", () => openEntryModal(card.id));
+    }
+
+    // Click for labeled entries (database cards only)
     el.addEventListener("click", (event) => {
       if (event.target.closest("button, select, input, textarea, a")) return;
-      const group = getGroup();
-      if (group?.clickLimit && groupTotalClicks() >= group.clickLimit) {
-        alert("This group has reached its total click limit. All cards are unclickable.");
-        return;
-      }
       if (card.clickLimit && card.clicks >= card.clickLimit) {
         alert("This card has reached its click limit and is unclickable.");
         return;
       }
       registerClick(card.id, "card", "Card");
-      if (isDatabaseCard) openEntryModal(card.id);
+      if (isDatabaseCard) {
+        openEntryModal(card.id);
+      }
     });
 
-    el.querySelector("[data-delete-card]").addEventListener("click", () => deleteCard(card.id));
-    const openEntriesBtn = el.querySelector("[data-open-entries]");
-    if (openEntriesBtn) openEntriesBtn.addEventListener("click", () => openEntryModal(card.id));
-    el.querySelector("[data-edit-card]").addEventListener("click", () => openEditCardModal(card.id));
     return el;
   }
 
@@ -497,10 +769,30 @@ document.addEventListener("DOMContentLoaded", () => {
     cardTypeInput.value = "standard";
     cardDescriptionInput.value = "";
     cardImageInput.value = "";
+    cardImageData = "";
+    if (cardImagePreview) cardImagePreview.innerHTML = "";
     cardClickLimitInput.value = "";
+    // Populate Group dropdown
+    cardGroupSelect.innerHTML = "";
+    const noneOption = document.createElement("option");
+    noneOption.textContent = "Current group";
+    noneOption.value = "";
+    cardGroupSelect.appendChild(noneOption);
+    state.groups.forEach((g) => {
+      const option = document.createElement("option");
+      option.value = g.id;
+      option.textContent = g.title;
+      if (g.id === groupId) option.selected = true;
+      cardGroupSelect.appendChild(option);
+    });
     buttonNameInput.value = "";
     buttonTypeInput.value = "label";
     buttonValueInput.value = "";
+    buttonImageData = "";
+    buttonImageInput.value = "";
+    buttonImagePreview.innerHTML = "";
+    buttonLinkGroup.style.display = "block";
+    buttonImageGroup.style.display = "none";
     renderDraftButtons();
     createCardModal.classList.remove("hidden");
   }
@@ -508,6 +800,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeCreateCardModal() {
     createCardModal.classList.add("hidden");
     draftButtons = [];
+    cardImageData = "";
+    if (cardImagePreview) cardImagePreview.innerHTML = "";
+    buttonImageData = "";
+    buttonImageInput.value = "";
+    buttonImagePreview.innerHTML = "";
   }
 
   function addDraftButton() {
@@ -519,11 +816,25 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("A button with this name already exists on this card.");
       return;
     }
-    if ((type === "link" || type === "image") && !value) {
-      alert("Please add a URL value for link/image button.");
+    if (type === "link" && !value) {
+      alert("Please add a URL value for link button.");
       return;
     }
-    draftButtons.push({ id: uid("btn"), name, type, value, clickCount: 0 });
+    if (type === "image" && !buttonImageData) {
+      alert("Please upload an image for the image button.");
+      return;
+    }
+    // For image, use the uploaded image data as the value
+    const buttonValue = type === "image" ? buttonImageData : value;
+    draftButtons.push({ id: uid("btn"), name, type, value: buttonValue, clickCount: 0 });
+    // Reset to default type
+    buttonTypeInput.value = "label";
+    buttonValueInput.style.display = "block";
+    buttonImageInput.style.display = "none";
+    buttonImagePreview.style.display = "none";
+    buttonImageData = "";
+    buttonImageInput.value = "";
+    buttonImagePreview.innerHTML = "";
     buttonNameInput.value = "";
     buttonValueInput.value = "";
     renderDraftButtons();
@@ -550,24 +861,25 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  async function saveCard() {
+  async function createCard() {
     const title = cardTitleInput.value.trim();
     if (!title) { alert("Card title is required."); return; }
-    // Check for duplicate card title in this group
-    const existingCard = state.cards.find((c) => c.groupId === groupId && c.title.toLowerCase() === title.toLowerCase());
+    const selectedGroupId = cardGroupSelect.value || groupId;
+    // Check for duplicate card title in the selected group
+    const existingCard = state.cards.find((c) => c.groupId === selectedGroupId && c.title.toLowerCase() === title.toLowerCase());
     if (existingCard) {
-      alert("A card with this name already exists in this group.");
+      alert("A card with this name already exists in the selected group.");
       return;
     }
     const clickLimitValue = cardClickLimitInput.value.trim();
     const clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
-    const newCard = {
+    state.cards.unshift({
       id: uid("card"),
-      groupId: groupId,
+      groupId: selectedGroupId,
       title,
       cardType: cardTypeInput.value,
       description: cardDescriptionInput.value.trim(),
-      imageUrl: cardImageInput.value.trim(),
+      imageUrl: cardImageData,
       clickLimit,
       clicks: 0,
       clickHistory: [],
@@ -575,8 +887,7 @@ document.addEventListener("DOMContentLoaded", () => {
       entries: [],
       createdAt: nowIso(),
       updatedAt: nowIso(),
-    };
-    state.cards.push(newCard);
+    });
     await saveStateToFirestore();
     renderGroupPage();
     closeCreateCardModal();
@@ -659,11 +970,25 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("A button with this name already exists on this card.");
       return;
     }
-    if ((type === "link" || type === "image") && !value) {
-      alert("Please add a URL value for link/image button.");
+    if (type === "link" && !value) {
+      alert("Please add a URL value for link button.");
       return;
     }
-    editDraftButtons.push({ id: uid("btn"), name, type, value, clickCount: 0 });
+    if (type === "image" && !editButtonImageData) {
+      alert("Please upload an image for the image button.");
+      return;
+    }
+    // For image, use the uploaded image data as the value
+    const buttonValue = type === "image" ? editButtonImageData : value;
+    editDraftButtons.push({ id: uid("btn"), name, type, value: buttonValue, clickCount: 0 });
+    // Reset to default type
+    editButtonTypeInput.value = "label";
+    editButtonValueInput.style.display = "block";
+    editButtonImageInput.style.display = "none";
+    editButtonImagePreview.style.display = "none";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
     editButtonNameInput.value = "";
     editButtonValueInput.value = "";
     renderEditDraftButtons();
@@ -697,9 +1022,47 @@ document.addEventListener("DOMContentLoaded", () => {
     renderEditGroupOptions(card.groupId);
     editCardTitleInput.value = card.title || "";
     editCardTypeInput.value = card.cardType || "standard";
+    editCardTypeInput.disabled = true;
     editCardDescriptionInput.value = card.description || "";
-    editCardImageInput.value = card.imageUrl || "";
+    editCardImageInput.value = "";
+    editCardImageData = "";
+    if (editCardImagePreview) {
+      if (card.imageUrl) {
+        editCardImagePreview.innerHTML = `<img src="${card.imageUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        editCardImagePreview.innerHTML = "";
+      }
+    }
     editCardClickLimitInput.value = card.clickLimit || "";
+    // Populate card info stats
+    const totalClicks = (card.clicks || 0) + (card.buttons || []).reduce((sum, b) => sum + (b.clickCount || 0), 0);
+    const isDatabaseCard = card.cardType === "database";
+    const entryCount = (card.entries || []).length;
+    
+    // Show/hide stats based on card type
+    if (editCardClicksRow) editCardClicksRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardWeekRow) editCardWeekRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardMonthRow) editCardMonthRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardEntriesRow) editCardEntriesRow.style.display = isDatabaseCard ? "inline" : "none";
+    
+    // Populate stats
+    if (editCardTotalClicks) editCardTotalClicks.textContent = totalClicks.toString();
+    if (editCardWeekClicks) editCardWeekClicks.textContent = clicksSince(card, 7).toString();
+    if (editCardMonthClicks) editCardMonthClicks.textContent = clicksSince(card, 30).toString();
+    if (editCardEntriesCount) editCardEntriesCount.textContent = entryCount.toString();
+    if (editCardCreated && card.createdAt) editCardCreated.textContent = new Date(card.createdAt).toLocaleString();
+    
+    // For database cards, show entry count in total row
+    if (isDatabaseCard && editCardTotalClicks) {
+      editCardTotalClicks.textContent = entryCount.toString() + " entries";
+    }
+    // Populate button click stats
+    if (editCardButtonStats) {
+      const buttonStatsHtml = (card.buttons || []).map((b) => 
+        `<span class="chip" style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${escapeHtml(b.name)}: ${b.clickCount || 0}</span>`
+      ).join("");
+      editCardButtonStats.innerHTML = buttonStatsHtml || '<span class="muted" style="font-size:0.8rem;">No labeled buttons</span>';
+    }
     editDraftButtons = (card.buttons || []).map((button) => ({
       id: button.id || uid("btn"),
       name: button.name || "",
@@ -710,6 +1073,11 @@ document.addEventListener("DOMContentLoaded", () => {
     editButtonNameInput.value = "";
     editButtonTypeInput.value = "label";
     editButtonValueInput.value = "";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
+    editButtonLinkGroup.style.display = "block";
+    editButtonImageGroup.style.display = "none";
     renderEditDraftButtons();
     editCardModal.classList.remove("hidden");
   }
@@ -717,9 +1085,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeEditCardModal() {
     activeCardIdForEdit = null;
     editDraftButtons = [];
+    editCardImageData = "";
+    if (editCardImagePreview) editCardImagePreview.innerHTML = "";
     editButtonNameInput.value = "";
     editButtonTypeInput.value = "label";
     editButtonValueInput.value = "";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
     editCardModal.classList.add("hidden");
   }
 
@@ -740,7 +1113,7 @@ document.addEventListener("DOMContentLoaded", () => {
     card.title = title;
     card.cardType = editCardTypeInput.value;
     card.description = editCardDescriptionInput.value.trim();
-    card.imageUrl = editCardImageInput.value.trim();
+    card.imageUrl = editCardImageData || card.imageUrl;
     card.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
     card.buttons = editDraftButtons.map((button) => ({ ...button }));
     card.updatedAt = nowIso();
@@ -900,21 +1273,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (auth) {
     const provider = new GoogleAuthProvider();
-    signInBtn.addEventListener("click", async () => {
-      authHint.textContent = "";
-      try {
-        await signInWithPopup(auth, provider);
-      } catch (err) {
-        authHint.textContent = err?.message || "Sign-in failed. Please try again.";
-        authHint.style.color = "#b91c1c";
-      }
-    });
     signOutBtn.addEventListener("click", async () => {
+      authHint.textContent = "";
+      setLoadingUI(); // Show loading immediately when signing out
       try {
         await signOut(auth);
       } catch (err) {
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
+        setSignedOutUI(); // Only show welcome if sign-out fails
+      }
+    });
+    signInBtn.addEventListener("click", async () => {
+      authHint.textContent = "";
+      setLoadingUI(); // Show loading immediately when signing in
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        authHint.textContent = err?.message || "Sign-in failed. Please try again.";
+        authHint.style.color = "#b91c1c";
+        setSignedOutUI(); // Show welcome only if sign-in fails
       }
     });
     onAuthStateChanged(auth, async (user) => {
@@ -937,4 +1315,18 @@ document.addEventListener("DOMContentLoaded", () => {
       authHint.style.color = "#b45309";
     });
   }
+
+  // Handle page visibility changes (back button navigation)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && currentUserId) {
+      // Re-render when user comes back to ensure UI is up to date
+      const group = getGroup();
+      if (group) {
+        renderGroupPage();
+      }
+    }
+  });
+
+  // Show loading state initially while auth is being determined
+  setLoadingUI();
 });

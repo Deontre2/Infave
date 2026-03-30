@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#0b0b10">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Infave">
@@ -12,9 +12,14 @@
   <title>Infave - Click Tracker</title>
   <link rel="icon" type="image/svg+xml" href="icon-192x192.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
+  <div class="loading-screen hidden" id="loading-screen">
+    <div class="loading-spinner"></div>
+    <p>Loading...</p>
+  </div>
+
   <div class="container">
     <header class="top-bar">
       <div class="auth-bar hidden" id="auth-bar">
@@ -101,29 +106,32 @@
         <h3>Create Card</h3>
         <button id="close-create-card-modal-btn" class="danger-btn" type="button">Close</button>
       </div>
-      <div class="form-group">
-        <label for="card-group-select">Group (optional)</label>
-        <select id="card-group-select"></select>
+      <!-- Top row: Card Image | Group | Card Type -->
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div class="form-group" style="flex:1;">
+          <label for="card-image-input">Card Image</label>
+          <input id="card-image-input" type="file" accept="image/*">
+          <div id="card-image-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="card-group-select">Group (optional)</label>
+          <select id="card-group-select"></select>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="card-type-input">Card Type</label>
+          <select id="card-type-input">
+            <option value="standard">Standard card (count clicks only)</option>
+            <option value="database">Labeled Clicks card (database style)</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label for="card-title-input">Card Title</label>
         <input id="card-title-input" type="text" placeholder="Card title">
       </div>
       <div class="form-group">
-        <label for="card-type-input">Card Type</label>
-        <select id="card-type-input">
-          <option value="standard">Standard card (count clicks only)</option>
-          <option value="database">Labeled Clicks card (database style)</option>
-        </select>
-      </div>
-      <div class="form-group">
         <label for="card-description-input">Card Description</label>
         <textarea id="card-description-input" placeholder="Describe this card..."></textarea>
-      </div>
-      <div class="form-group">
-        <label for="card-image-input">Card Image (optional)</label>
-        <input id="card-image-input" type="file" accept="image/*">
-        <div id="card-image-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
       </div>
       <div class="form-group">
         <label for="card-click-limit-input">Click Limit (optional)</label>
@@ -131,19 +139,43 @@
       </div>
       <div class="button-builder">
         <h3>Additional Buttons</h3>
-        <div class="button-grid">
-          <input id="button-name-input" type="text" placeholder="Button name (RED)">
-          <select id="button-type-input">
-            <option value="label">Label click</option>
-            <option value="link">Open link</option>
-            <option value="image">Open image fullscreen</option>
-          </select>
-          <input id="button-value-input" type="text" placeholder="URL for link/image">
-          <button id="add-button-btn" type="button">Add Button</button>
-        </div>
         <ul id="button-draft-list" class="button-draft-list"></ul>
       </div>
-      <button id="create-card-btn" type="button">Create Card</button>
+      <div style="display:flex; gap:12px; margin-top:16px;">
+        <button id="create-card-btn" type="button">Create Card</button>
+        <button id="open-add-button-modal-btn" class="inline-btn btn-secondary" type="button">Add a Button</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Button Sub-Modal (Create Card) -->
+  <div class="modal hidden" id="add-button-modal" style="background:rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width:350px;">
+      <div class="modal-header" style="justify-content:center;">
+        <h3>Add Button</h3>
+      </div>
+      <div class="form-group">
+        <label for="button-name-input">Button Name</label>
+        <input id="button-name-input" type="text" placeholder="Button name (RED)">
+      </div>
+      <div class="form-group">
+        <label for="button-type-input">Button Type</label>
+        <select id="button-type-input">
+          <option value="label">Label click</option>
+          <option value="link">Open link</option>
+          <option value="image">Open image fullscreen (device upload)</option>
+        </select>
+      </div>
+      <div class="form-group" id="button-link-group">
+        <label for="button-value-input">URL</label>
+        <input id="button-value-input" type="text" placeholder="https://...">
+      </div>
+      <div class="form-group" id="button-image-group" style="display:none;">
+        <label for="button-image-input">Upload Image</label>
+        <input id="button-image-input" type="file" accept="image/*">
+        <div id="button-image-preview" style="margin-top:8px; max-width:150px; max-height:100px; overflow:hidden; border-radius:8px; display:none;"></div>
+      </div>
+      <button id="add-button-btn" type="button">Add Button</button>
     </div>
   </div>
 
@@ -153,41 +185,43 @@
         <h3>Edit Card</h3>
         <button id="close-edit-card-modal-btn" class="danger-btn" type="button">Close</button>
       </div>
-      <div class="card-info-section" style="background:#f3f4f6; padding:12px; border-radius:8px; margin-bottom:16px;">
-        <h4 style="margin:0 0 8px 0; font-size:0.9rem; color:#374151;">Card Info</h4>
+      <div class="card-info-section">
+        <h4>Card Info</h4>
         <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:0.85rem;">
-          <span><strong>Week:</strong> <span id="edit-card-week-clicks">0</span></span>
-          <span><strong>Month:</strong> <span id="edit-card-month-clicks">0</span></span>
+          <span id="edit-card-clicks-row"><strong>Total:</strong> <span id="edit-card-total-clicks">0</span></span>
+          <span id="edit-card-week-row"><strong>Week:</strong> <span id="edit-card-week-clicks">0</span></span>
+          <span id="edit-card-month-row"><strong>Month:</strong> <span id="edit-card-month-clicks">0</span></span>
+          <span id="edit-card-entries-row" style="display:none;"><strong>Entries:</strong> <span id="edit-card-entries-count">0</span></span>
           <span><strong>Created:</strong> <span id="edit-card-created">-</span></span>
         </div>
+        <div id="edit-card-button-stats" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;"></div>
       </div>
-      <div class="form-group">
-        <label>Total Clicks</label>
-        <div id="edit-card-total-clicks" class="stats-display" style="font-weight:600;color:var(--primary);">0</div>
-      </div>
-      <div class="form-group">
-        <label for="edit-card-group-select">Group (optional)</label>
-        <select id="edit-card-group-select"></select>
+      <!-- Top row: Card Image | Group | Card Type -->
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div class="form-group" style="flex:1;">
+          <label for="edit-card-image-input">Card Image</label>
+          <input id="edit-card-image-input" type="file" accept="image/*">
+          <div id="edit-card-image-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="edit-card-group-select">Group (optional)</label>
+          <select id="edit-card-group-select"></select>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label for="edit-card-type-input">Card Type</label>
+          <select id="edit-card-type-input" disabled>
+            <option value="standard">Standard card (count clicks only)</option>
+            <option value="database">Labeled Clicks card (database style)</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label for="edit-card-title-input">Card Title</label>
         <input id="edit-card-title-input" type="text" placeholder="Card title">
       </div>
       <div class="form-group">
-        <label for="edit-card-type-input">Card Type</label>
-        <select id="edit-card-type-input">
-          <option value="standard">Standard card (count clicks only)</option>
-          <option value="database">Labeled Clicks card (database style)</option>
-        </select>
-      </div>
-      <div class="form-group">
         <label for="edit-card-description-input">Card Description</label>
         <textarea id="edit-card-description-input" placeholder="Describe this card..."></textarea>
-      </div>
-      <div class="form-group">
-        <label for="edit-card-image-input">Card Image (optional)</label>
-        <input id="edit-card-image-input" type="file" accept="image/*">
-        <div id="edit-card-image-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
       </div>
       <div class="form-group">
         <label for="edit-card-click-limit-input">Click Limit (optional)</label>
@@ -195,19 +229,43 @@
       </div>
       <div class="button-builder">
         <h3>Additional Buttons</h3>
-        <div class="button-grid">
-          <input id="edit-button-name-input" type="text" placeholder="Button name (RED)">
-          <select id="edit-button-type-input">
-            <option value="label">Label click</option>
-            <option value="link">Open link</option>
-            <option value="image">Open image fullscreen</option>
-          </select>
-          <input id="edit-button-value-input" type="text" placeholder="URL for link/image">
-          <button id="add-edit-button-btn" type="button">Add Button</button>
-        </div>
         <ul id="edit-button-draft-list" class="button-draft-list"></ul>
       </div>
-      <button id="save-edit-card-btn" type="button">Save Card</button>
+      <div style="display:flex; gap:12px; margin-top:16px;">
+        <button id="save-edit-card-btn" type="button">Save Card</button>
+        <button id="open-add-edit-button-modal-btn" class="inline-btn btn-secondary" type="button">Add a Button</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Button Sub-Modal (Edit Card) -->
+  <div class="modal hidden" id="add-edit-button-modal" style="background:rgba(0,0,0,0.5);">
+    <div class="modal-content" style="max-width:350px;">
+      <div class="modal-header" style="justify-content:center;">
+        <h3>Add Button</h3>
+      </div>
+      <div class="form-group">
+        <label for="edit-button-name-input">Button Name</label>
+        <input id="edit-button-name-input" type="text" placeholder="Button name (RED)">
+      </div>
+      <div class="form-group">
+        <label for="edit-button-type-input">Button Type</label>
+        <select id="edit-button-type-input">
+          <option value="label">Label click</option>
+          <option value="link">Open link</option>
+          <option value="image">Open image fullscreen (device upload)</option>
+        </select>
+      </div>
+      <div class="form-group" id="edit-button-link-group">
+        <label for="edit-button-value-input">URL</label>
+        <input id="edit-button-value-input" type="text" placeholder="https://...">
+      </div>
+      <div class="form-group" id="edit-button-image-group" style="display:none;">
+        <label for="edit-button-image-input">Upload Image</label>
+        <input id="edit-button-image-input" type="file" accept="image/*">
+        <div id="edit-button-image-preview" style="margin-top:8px; max-width:150px; max-height:100px; overflow:hidden; border-radius:8px; display:none;"></div>
+      </div>
+      <button id="add-edit-button-btn" type="button">Add Button</button>
     </div>
   </div>
 
@@ -225,7 +283,7 @@
         <h3 id="description-modal-title">Entry Description</h3>
         <button id="close-description-modal-btn" class="danger-btn" type="button">Close</button>
       </div>
-      <div id="entry-button-stats" style="margin-bottom:12px; padding:8px; background:#f3f4f6; border-radius:6px;"></div>
+      <div id="entry-button-stats" class="card-info-section" style="padding:8px; margin-bottom:12px;"></div>
       <textarea id="entry-description-input" placeholder="Add plain text description..."></textarea>
       <button id="save-entry-description-btn" type="button">Save Description</button>
     </div>
@@ -237,6 +295,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=6"></script>
+  <script type="module" src="./app.js?v=22"></script>
 </body>
 </html>

@@ -849,14 +849,26 @@ button:active {
   color: var(--secondary-foreground);
 }
 
+.group-info-section {
+  background: var(--card);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.group-info-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.9rem;
+  color: var(--foreground);
+}
+
 .group-stats-bar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-  font-size: 0.9rem;
-  opacity: 1;
-  color: var(--secondary-foreground);
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
 }
 
 .group-stats-bar strong {
@@ -866,9 +878,7 @@ button:active {
 
 @media (min-width: 640px) {
   .group-stats-bar {
-    flex-direction: row;
     gap: 20px;
-    flex-wrap: wrap;
     font-size: 0.95rem;
   }
 }

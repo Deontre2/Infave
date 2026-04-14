@@ -1294,7 +1294,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
+    const deletedEntry = card.entries.find((e) => e.id === entryId);
+    if (!deletedEntry) return;
+    const deletedNumber = deletedEntry.number;
     card.entries = card.entries.filter((e) => e.id !== entryId);
+    card.entries.forEach((e) => { if (e.number > deletedNumber) e.number--; });
     await saveStateToFirestore();
     renderEntryList();
   }

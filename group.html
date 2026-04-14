@@ -318,15 +318,26 @@
     </div>
   </div>
 
-  <!-- Description modal -->
+  <!-- Edit Entry modal -->
   <div class="modal hidden" id="description-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="description-modal-title">Entry Description</h3>
+        <h3 id="description-modal-title">Edit Entry</h3>
         <button id="close-description-modal-btn" class="danger-btn" type="button">Close</button>
       </div>
-      <textarea id="entry-description-input" placeholder="Add plain text description..."></textarea>
-      <button id="save-entry-description-btn" type="button">Save Description</button>
+      <div class="form-group">
+        <label for="entry-name-input">Entry Name</label>
+        <input id="entry-name-input" type="text" placeholder="Entry name...">
+      </div>
+      <div class="form-group">
+        <label for="entry-number-input">Entry Number</label>
+        <input id="entry-number-input" type="number" min="1" placeholder="Entry number...">
+      </div>
+      <div class="form-group">
+        <label for="entry-description-input">Description</label>
+        <textarea id="entry-description-input" placeholder="Add plain text description..."></textarea>
+      </div>
+      <button id="save-entry-description-btn" type="button">Save Entry</button>
     </div>
   </div>
 

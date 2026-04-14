@@ -135,10 +135,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
 
-  // Description modal
+  // Edit Entry modal (formerly Description modal)
   const descriptionModal = document.getElementById("description-modal");
   const descriptionModalTitle = document.getElementById("description-modal-title");
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
+  const entryNameInput = document.getElementById("entry-name-input");
+  const entryNumberInput = document.getElementById("entry-number-input");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
 
@@ -1279,7 +1281,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="entry-row-actions">
           <button data-copy-entry="${entry.id}" class="inline-btn" type="button">Copy</button>
           <button data-delete-entry="${entry.id}" class="inline-btn danger-btn" type="button">Delete</button>
-          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Description</button>
+          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Edit</button>
         </div>
       `;
       entryList.appendChild(row);
@@ -1333,8 +1335,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!entry) return;
     activeEntryIdForDescription = entry.id;
     const displayNum = buildEntryNumberMap(card).get(entry.id);
-    descriptionModalTitle.textContent = `Description: ${displayNum}. ${entry.label}`;
+    descriptionModalTitle.textContent = `Edit Entry: ${displayNum}. ${entry.label}`;
+    
+    // Populate input fields
+    entryNameInput.value = entry.label || "";
+    entryNumberInput.value = entry.number || displayNum || "";
     entryDescriptionInput.value = entry.description || "";
+    
     descriptionModal.classList.remove("hidden");
   }
 
@@ -1343,8 +1350,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
     if (!entry) return;
+    
+    // Update entry name
+    const newName = entryNameInput.value.trim();
+    if (newName) {
+      entry.label = newName;
+    }
+    
+    // Update entry number
+    const newNumber = parseInt(entryNumberInput.value, 10);
+    if (!isNaN(newNumber) && newNumber > 0) {
+      entry.number = newNumber;
+    }
+    
+    // Update description
     entry.description = entryDescriptionInput.value;
+    
     await saveStateToFirestore();
+    renderEntryList();
     descriptionModal.classList.add("hidden");
   }
 

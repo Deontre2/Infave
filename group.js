@@ -274,6 +274,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // Fallback to click for older browsers
     element.addEventListener("click", handler);
   }
+  
+  function updateCreateCardLimitLabel() {
+    const createCardLimitLabel = document.getElementById("create-card-limit-label");
+    const isDatabase = cardTypeInput.value === "database";
+    if (createCardLimitLabel) {
+        createCardLimitLabel.textContent = isDatabase ? "Entry Limit (optional)" : "Click Limit (optional)";
+    }
+    if (cardClickLimitInput) {
+        cardClickLimitInput.placeholder = isDatabase ? "e.g., 100 - card stops creating entries at limit" : "e.g., 100 - card becomes unclickable at limit";
+    }
+  }
 
   function initAppOnce() {
     if (isAppInitialized) return;
@@ -311,6 +322,8 @@ document.addEventListener("DOMContentLoaded", () => {
       openCreateCardModal();
     }, { passive: false });
     
+    cardTypeInput.addEventListener("change", updateCreateCardLimitLabel);
+
     closeCreateCardModalBtn.addEventListener("click", closeCreateCardModal);
     closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
@@ -694,19 +707,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.createElement("article");
     const cardType = card.cardType || "standard";
     const isDatabaseCard = cardType === "database";
-    const isAtCardLimit = card.clickLimit && card.clicks >= card.clickLimit;
+    const entryCount = (card.entries || []).length;
+    const isAtLimit = isDatabaseCard
+      ? card.clickLimit && entryCount >= card.clickLimit
+      : card.clickLimit && card.clicks >= card.clickLimit;
     const isAtGroupLimit = isGroupAtLimit();
-    const isUnclickable = isAtCardLimit || isAtGroupLimit;
+    const isUnclickable = isAtLimit || isAtGroupLimit;
+
     el.className = "card" + (isUnclickable ? " card-limit-reached" : "");
     el.setAttribute("data-card-id", card.id);
     const imageContent = card.imageUrl
       ? `<div class="card-image" style="background-image:url('${escapeAttribute(card.imageUrl)}')"></div>`
       : `<div class="card-image">${escapeHtml(card.title.charAt(0).toUpperCase())}</div>`;
     const buttonChips = card.buttons.map((b) => `<span class="chip">${escapeHtml(b.name)} ${b.clickCount}</span>`).join("");
-    const entryCount = (card.entries || []).length;
+    
     const mainCount = isDatabaseCard ? `Entries ${entryCount}` : `Card ${card.clicks}`;
     const limitIndicator = card.clickLimit
-      ? `<span class="chip ${isAtCardLimit ? 'limit-reached' : ''}">${card.clicks}/${card.clickLimit}</span>`
+      ? `<span class="chip ${isAtLimit ? 'limit-reached' : ''}">${isDatabaseCard ? entryCount : card.clicks}/${card.clickLimit}</span>`
       : '';
     const allClicksRow = `<span class="chip">${mainCount}</span>${limitIndicator}${buttonChips}`;
     el.innerHTML = `
@@ -715,7 +732,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="card-top">
           <div>
             <strong>${escapeHtml(card.title)}</strong>
-            <p class="muted">Type: ${isDatabaseCard ? "Labeled Clicks" : "Standard"}${isUnclickable ? ' <span style="color:#dc2626;font-weight:bold;">(LIMIT REACHED)</span>' : ''}</p>
+            <p class="muted">Type: ${isDatabaseCard ? "Database" : "Standard"}${isUnclickable ? ' <span style="color:#dc2626;font-weight:bold;">(LIMIT REACHED)</span>' : ''}</p>
             <p class="muted">${escapeHtml(card.description || "No description")}</p>
           </div>
         </div>
@@ -767,8 +784,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Click for labeled entries (database cards only)
     el.addEventListener("click", (event) => {
       if (event.target.closest("button, select, input, textarea, a")) return;
-      if (card.clickLimit && card.clicks >= card.clickLimit) {
-        alert("This card has reached its click limit and is unclickable.");
+      if (isAtLimit) {
+        if (isDatabaseCard) {
+            alert("This card has reached its entry limit and can no longer create new entries.");
+        } else {
+            alert("This card has reached its click limit and is unclickable.");
+        }
         return;
       }
       registerClick(card.id, "card", "Card");
@@ -827,6 +848,8 @@ document.addEventListener("DOMContentLoaded", () => {
     cardImageData = "";
     if (cardImagePreview) cardImagePreview.innerHTML = "";
     cardClickLimitInput.value = "";
+    updateCreateCardLimitLabel();
+
     // Populate Group dropdown
     cardGroupSelect.innerHTML = "";
     const noneOption = document.createElement("option");
@@ -1089,9 +1112,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     editCardClickLimitInput.value = card.clickLimit || "";
+    
+    const isDatabaseCard = card.cardType === "database";
+    const editCardLimitLabel = document.getElementById("edit-card-limit-label");
+    if (editCardLimitLabel) {
+        editCardLimitLabel.textContent = isDatabaseCard ? "Entry Limit (optional)" : "Click Limit (optional)";
+    }
+    if (editCardClickLimitInput) {
+        editCardClickLimitInput.placeholder = isDatabaseCard ? "e.g., 100 - card stops creating entries at limit" : "e.g., 100 - card becomes unclickable at limit";
+    }
+
     // Populate card info stats
     const totalClicks = (card.clicks || 0) + (card.buttons || []).reduce((sum, b) => sum + (b.clickCount || 0), 0);
-    const isDatabaseCard = card.cardType === "database";
     const entryCount = (card.entries || []).length;
     
     // Show/hide stats based on card type
@@ -1203,6 +1235,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!label) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
+    if (card.clickLimit && (card.entries || []).length >= card.clickLimit) {
+      alert("This card has reached its entry limit. You cannot add more entries.");
+      return;
+    }
     card.entries.unshift({
       id: uid("entry"),
       number: card.entries.length + 1,

@@ -755,7 +755,7 @@ button:active {
 }
 
 .card-info-section span:not([id]) {
-  color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 /* ── Modal Styles ───────────────────────────────────────────────────────── */

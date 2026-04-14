@@ -1366,15 +1366,22 @@ document.addEventListener("DOMContentLoaded", () => {
     renderGroups();
   }
 
+  function buildEntryNumberMap(card) {
+    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const map = new Map();
+    sorted.forEach((e, idx) => map.set(e.id, idx + 1));
+    return map;
+  }
+
   function renderEntryList() {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
+    const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
     const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
     
-    // Sort entries based on selected sort mode
     if (sortMode === "oldest") {
       entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortMode === "most-clicks") {
@@ -1391,6 +1398,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     entries.forEach((entry) => {
+      const displayNum = numberMap.get(entry.id);
       const entryButtons = (entry.buttons || []).map((b, idx) =>
         `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
       ).join("");
@@ -1398,7 +1406,7 @@ document.addEventListener("DOMContentLoaded", () => {
       row.className = "entry-row";
       row.innerHTML = `
         <div class="entry-row-header">
-          <strong>${entry.number}. ${escapeHtml(entry.label)}</strong>
+          <strong>${displayNum}. ${escapeHtml(entry.label)}</strong>
           <span class="muted">${new Date(entry.createdAt).toLocaleString()}</span>
         </div>
         <div class="entry-row-actions">
@@ -1433,11 +1441,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    const deletedEntry = card.entries.find((e) => e.id === entryId);
-    if (!deletedEntry) return;
-    const deletedNumber = deletedEntry.number;
     card.entries = card.entries.filter((e) => e.id !== entryId);
-    card.entries.forEach((e) => { if (e.number > deletedNumber) e.number--; });
     await saveStateToFirestore();
     renderEntryList();
   }
@@ -1447,15 +1451,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === entryId);
     if (!entry) return;
-    const text = `${entry.number}. ${entry.label} - ${new Date(entry.createdAt).toLocaleString()}`;
+    const displayNum = buildEntryNumberMap(card).get(entry.id);
+    const text = `${displayNum}. ${entry.label} - ${new Date(entry.createdAt).toLocaleString()}`;
     await navigator.clipboard.writeText(text);
   }
 
   async function copyAllEntries() {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    const text = card.entries
-      .map((e) => `${e.number}. ${e.label} - ${new Date(e.createdAt).toLocaleString()}`)
+    const numberMap = buildEntryNumberMap(card);
+    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const text = sorted
+      .map((e) => `${numberMap.get(e.id)}. ${e.label} - ${new Date(e.createdAt).toLocaleString()}`)
       .join("\n");
     await navigator.clipboard.writeText(text || "");
   }
@@ -1466,7 +1473,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const entry = card.entries.find((e) => e.id === entryId);
     if (!entry) return;
     activeEntryIdForDescription = entry.id;
-    descriptionModalTitle.textContent = `Description: ${entry.number}. ${entry.label}`;
+    const displayNum = buildEntryNumberMap(card).get(entry.id);
+    descriptionModalTitle.textContent = `Description: ${displayNum}. ${entry.label}`;
     entryDescriptionInput.value = entry.description || "";
     
     // Display entry button stats

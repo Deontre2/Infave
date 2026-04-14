@@ -1286,10 +1286,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function renumberEntries(card) {
-    card.entries.forEach((entry, idx) => { entry.number = idx + 1; });
-  }
-
   async function deleteEntry(entryId) {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);

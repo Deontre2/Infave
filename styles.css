@@ -844,9 +844,9 @@ button:active {
 }
 
 .group-page-desc {
-  opacity: 0.85;
+  opacity: 0.9;
   font-size: 1rem;
-  color: var(--muted-foreground);
+  color: var(--secondary-foreground);
 }
 
 .group-stats-bar {
@@ -855,8 +855,13 @@ button:active {
   gap: 8px;
   margin-top: 12px;
   font-size: 0.9rem;
-  opacity: 0.9;
-  color: var(--muted-foreground);
+  opacity: 1;
+  color: var(--secondary-foreground);
+}
+
+.group-stats-bar strong {
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 @media (min-width: 640px) {

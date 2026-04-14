@@ -738,7 +738,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <div class="button-summary-row">${allClicksRow || '<span class="muted">No clicks</span>'}</div>
         <div class="card-action-row">
-          ${isDatabaseCard ? `<button data-open-entries="${card.id}" class="inline-btn" type="button">Labeled Entries</button>` : ""}
+          ${isDatabaseCard ? `<button data-open-entries="${card.id}" class="inline-btn" type="button">View Entries</button>` : ""}
         </div>
         <div class="card-action-row" data-extra-buttons="${card.id}"></div>
       </div>
@@ -1148,7 +1148,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const buttonStatsHtml = (card.buttons || []).map((b) => 
         `<span class="chip" style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${escapeHtml(b.name)}: ${b.clickCount || 0}</span>`
       ).join("");
-      editCardButtonStats.innerHTML = buttonStatsHtml || '<span class="muted" style="font-size:0.8rem;">No labeled buttons</span>';
+      editCardButtonStats.innerHTML = buttonStatsHtml || '<span class="muted" style="font-size:0.8rem;">No buttons</span>';
     }
     editDraftButtons = (card.buttons || []).map((button) => ({
       id: button.id || uid("btn"),
@@ -1215,7 +1215,7 @@ document.addEventListener("DOMContentLoaded", () => {
     activeCardIdForEntries = cardId;
     const card = state.cards.find((c) => c.id === cardId);
     if (!card) return;
-    entryModalTitle.textContent = `Labeled Entries: ${card.title}`;
+    entryModalTitle.textContent = `Entries: ${card.title}`;
     entrySearchInput.value = "";
     entryNewLabelInput.value = "";
     entryModal.classList.remove("hidden");

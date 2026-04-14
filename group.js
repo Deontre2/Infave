@@ -1251,10 +1251,40 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function buildEntryNumberMap(card) {
-    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    // Sort entries by their number property (or createdAt as fallback for entries without numbers)
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      // Fallback to createdAt if numbers are equal or both missing
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
     const map = new Map();
-    sorted.forEach((e, idx) => map.set(e.id, idx + 1));
+    sorted.forEach((e, idx) => map.set(e.id, e.number ?? (idx + 1)));
     return map;
+  }
+
+  function reorderEntriesAfterNumberChange(card, changedEntryId, newNumber) {
+    // Get all entries sorted by their current order
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+    // Remove the changed entry from the list
+    const changedEntry = sorted.find(e => e.id === changedEntryId);
+    const otherEntries = sorted.filter(e => e.id !== changedEntryId);
+
+    // Insert the changed entry at the new position
+    const insertIndex = Math.max(0, Math.min(newNumber - 1, otherEntries.length));
+    otherEntries.splice(insertIndex, 0, changedEntry);
+
+    // Reassign sequential numbers to all entries
+    otherEntries.forEach((e, idx) => {
+      e.number = idx + 1;
+    });
   }
 
   function renderEntryList() {
@@ -1357,10 +1387,11 @@ document.addEventListener("DOMContentLoaded", () => {
       entry.label = newName;
     }
     
-    // Update entry number
+    // Update entry number and reorder if needed
     const newNumber = parseInt(entryNumberInput.value, 10);
     if (!isNaN(newNumber) && newNumber > 0) {
-      entry.number = newNumber;
+      // Reorder all entries based on the new number
+      reorderEntriesAfterNumberChange(card, entry.id, newNumber);
     }
     
     // Update description

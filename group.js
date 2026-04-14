@@ -943,12 +943,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const title = cardTitleInput.value.trim();
     if (!title) { alert("Card title is required."); return; }
     const selectedGroupId = cardGroupSelect.value || groupId;
-    // Check for duplicate card title in the selected group
-    const existingCard = state.cards.find((c) => c.groupId === selectedGroupId && c.title.toLowerCase() === title.toLowerCase());
-    if (existingCard) {
-      alert("A card with this name already exists in the selected group.");
-      return;
-    }
     const clickLimitValue = cardClickLimitInput.value.trim();
     const clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
     state.cards.unshift({

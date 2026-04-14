@@ -1233,9 +1233,10 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("This card has reached its entry limit. You cannot add more entries.");
       return;
     }
+    const nextNumber = card.entries.length > 0 ? Math.max(...card.entries.map(e => e.number || 0)) + 1 : 1;
     card.entries.unshift({
       id: uid("entry"),
-      number: card.entries.length + 1,
+      number: nextNumber,
       label,
       createdAt: nowIso(),
       description: "",
@@ -1294,7 +1295,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     card.entries = card.entries.filter((e) => e.id !== entryId);
-    renumberEntries(card);
     await saveStateToFirestore();
     renderEntryList();
   }

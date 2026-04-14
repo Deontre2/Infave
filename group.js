@@ -1287,6 +1287,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function renumberAllEntries(card) {
+    // Sort entries by their current number (or createdAt as fallback)
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+    // Reassign sequential numbers starting from 1
+    sorted.forEach((e, idx) => {
+      e.number = idx + 1;
+    });
+  }
+
   function renderEntryList() {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
@@ -1332,6 +1346,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     card.entries = card.entries.filter((e) => e.id !== entryId);
+    // Renumber remaining entries to close gaps
+    renumberAllEntries(card);
     await saveStateToFirestore();
     renderEntryList();
   }

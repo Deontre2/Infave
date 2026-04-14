@@ -135,10 +135,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
 
-  // Description modal
+  // Edit Entry modal (formerly Description modal)
   const descriptionModal = document.getElementById("description-modal");
   const descriptionModalTitle = document.getElementById("description-modal-title");
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
+  const entryNameInput = document.getElementById("entry-name-input");
+  const entryNumberInput = document.getElementById("entry-number-input");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
 
@@ -200,6 +202,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = snapshot.data();
         if (data?.version === STATE_VERSION && Array.isArray(data.groups) && Array.isArray(data.cards)) {
           state = data;
+          // Repair any corrupted entry numbers on load
+          repairAllEntryNumbers();
           return;
         }
       }
@@ -207,6 +211,39 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Error loading from Firestore:", err);
     }
     state = { version: STATE_VERSION, groups: [], cards: [] };
+  }
+
+  function repairAllEntryNumbers() {
+    let needsSave = false;
+    state.cards.forEach(card => {
+      if (!card.entries || card.entries.length === 0) return;
+      
+      // Sort entries by existing number (if valid) or by createdAt
+      const sorted = [...card.entries].sort((a, b) => {
+        const numA = (typeof a.number === 'number' && a.number > 0) ? a.number : Infinity;
+        const numB = (typeof b.number === 'number' && b.number > 0) ? b.number : Infinity;
+        if (numA !== numB) return numA - numB;
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      });
+      
+      // Check if numbers need repair (gaps, duplicates, or missing)
+      const currentNumbers = sorted.map(e => e.number);
+      const expectedNumbers = sorted.map((_, idx) => idx + 1);
+      const numbersMatch = currentNumbers.every((num, idx) => num === expectedNumbers[idx]);
+      
+      if (!numbersMatch) {
+        // Reassign sequential numbers
+        sorted.forEach((entry, idx) => {
+          entry.number = idx + 1;
+        });
+        needsSave = true;
+      }
+    });
+    
+    // Save repaired state if changes were made
+    if (needsSave) {
+      saveStateToFirestore();
+    }
   }
 
   async function saveStateToFirestore() {
@@ -1233,8 +1270,9 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("This card has reached its entry limit. You cannot add more entries.");
       return;
     }
-    const nextNumber = card.entries.length > 0 ? Math.max(...card.entries.map(e => e.number || 0)) + 1 : 1;
-    card.entries.unshift({
+    // New entries get added at the end with the next sequential number
+    const nextNumber = card.entries.length + 1;
+    card.entries.push({
       id: uid("entry"),
       number: nextNumber,
       label,
@@ -1249,10 +1287,54 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function buildEntryNumberMap(card) {
-    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    // Sort entries by their number property (or createdAt as fallback for entries without numbers)
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      // Fallback to createdAt if numbers are equal or both missing
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
     const map = new Map();
-    sorted.forEach((e, idx) => map.set(e.id, idx + 1));
+    sorted.forEach((e, idx) => map.set(e.id, e.number ?? (idx + 1)));
     return map;
+  }
+
+  function reorderEntriesAfterNumberChange(card, changedEntryId, newNumber) {
+    // Get all entries sorted by their current order
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+    // Remove the changed entry from the list
+    const changedEntry = sorted.find(e => e.id === changedEntryId);
+    const otherEntries = sorted.filter(e => e.id !== changedEntryId);
+
+    // Insert the changed entry at the new position
+    const insertIndex = Math.max(0, Math.min(newNumber - 1, otherEntries.length));
+    otherEntries.splice(insertIndex, 0, changedEntry);
+
+    // Reassign sequential numbers to all entries
+    otherEntries.forEach((e, idx) => {
+      e.number = idx + 1;
+    });
+  }
+
+  function renumberAllEntries(card) {
+    // Sort entries by their current number (or createdAt as fallback)
+    const sorted = [...card.entries].sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+    // Reassign sequential numbers starting from 1
+    sorted.forEach((e, idx) => {
+      e.number = idx + 1;
+    });
   }
 
   function renderEntryList() {
@@ -1279,7 +1361,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="entry-row-actions">
           <button data-copy-entry="${entry.id}" class="inline-btn" type="button">Copy</button>
           <button data-delete-entry="${entry.id}" class="inline-btn danger-btn" type="button">Delete</button>
-          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Description</button>
+          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Edit</button>
         </div>
       `;
       entryList.appendChild(row);
@@ -1300,6 +1382,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
     card.entries = card.entries.filter((e) => e.id !== entryId);
+    // Renumber remaining entries to close gaps
+    renumberAllEntries(card);
     await saveStateToFirestore();
     renderEntryList();
   }
@@ -1333,8 +1417,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!entry) return;
     activeEntryIdForDescription = entry.id;
     const displayNum = buildEntryNumberMap(card).get(entry.id);
-    descriptionModalTitle.textContent = `Description: ${displayNum}. ${entry.label}`;
+    descriptionModalTitle.textContent = `Edit Entry: ${displayNum}. ${entry.label}`;
+    
+    // Populate input fields
+    entryNameInput.value = entry.label || "";
+    entryNumberInput.value = entry.number || displayNum || "";
     entryDescriptionInput.value = entry.description || "";
+    
     descriptionModal.classList.remove("hidden");
   }
 
@@ -1343,8 +1432,25 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
     if (!entry) return;
+    
+    // Update entry name
+    const newName = entryNameInput.value.trim();
+    if (newName) {
+      entry.label = newName;
+    }
+    
+    // Update entry number and reorder if needed
+    const newNumber = parseInt(entryNumberInput.value, 10);
+    if (!isNaN(newNumber) && newNumber > 0) {
+      // Reorder all entries based on the new number
+      reorderEntriesAfterNumberChange(card, entry.id, newNumber);
+    }
+    
+    // Update description
     entry.description = entryDescriptionInput.value;
+    
     await saveStateToFirestore();
+    renderEntryList();
     descriptionModal.classList.add("hidden");
   }
 

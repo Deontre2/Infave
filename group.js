@@ -1343,7 +1343,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
-    const entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    
+    // Always sort by entry number to respect manual ordering
+    entries.sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+    
     entryList.innerHTML = "";
     if (entries.length === 0) {
       entryList.innerHTML = `<p class="muted">No entries found.</p>`;

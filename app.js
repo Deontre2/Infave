@@ -1461,18 +1461,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
-    const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
     
-    if (sortMode === "oldest") {
-      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    } else if (sortMode === "most-clicks") {
-      entries.sort((a, b) => {
-        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
-        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
-        return bClicks - aClicks;
-      });
-    }
+    // Always sort by entry number to respect manual ordering
+    entries.sort((a, b) => {
+      const numA = a.number ?? Infinity;
+      const numB = b.number ?? Infinity;
+      if (numA !== numB) return numA - numB;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
     
     entryList.innerHTML = "";
     if (entries.length === 0) {

@@ -183,10 +183,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
+    console.log("[v0] Firebase initialized successfully");
   } catch (err) {
+    console.error("[v0] Firebase initialization failed:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
+    // Ensure we show the welcome screen if Firebase fails
+    setSignedOutUI();
   }
 
   function getUserDocRef() {
@@ -1600,6 +1604,17 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(text).replaceAll("`", "");
   }
 
+  // Track if auth state has been determined
+  let authStateDetermined = false;
+  
+  // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
+  const authTimeout = setTimeout(() => {
+    if (!authStateDetermined) {
+      console.warn("[v0] Auth state timeout - showing welcome screen");
+      setSignedOutUI();
+    }
+  }, 5000);
+
   if (auth) {
     const provider = new GoogleAuthProvider();
 
@@ -1609,6 +1624,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
+        console.error("[v0] Sign-in error:", err);
         authHint.textContent = err?.message || "Sign-in failed. Please try again.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Show welcome only if sign-in fails
@@ -1621,6 +1637,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signOut(auth);
       } catch (err) {
+        console.error("[v0] Sign-out error:", err);
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Only show welcome if sign-out fails
@@ -1628,11 +1645,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     onAuthStateChanged(auth, async (user) => {
+      authStateDetermined = true;
+      clearTimeout(authTimeout);
+      console.log("[v0] Auth state changed:", user ? "signed in" : "signed out");
+      
       if (user) {
         currentUserId = user.uid;
-        await loadStateFromFirestore();
-        setSignedInUI(user);
-        initAppOnce();
+        try {
+          await loadStateFromFirestore();
+          setSignedInUI(user);
+          initAppOnce();
+        } catch (err) {
+          console.error("[v0] Error loading user data:", err);
+          authHint.textContent = "Error loading your data. Please try refreshing the page.";
+          authHint.style.color = "#b91c1c";
+          setSignedOutUI();
+        }
       } else {
         currentUserId = null;
         state = defaultState();
@@ -1640,6 +1668,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
+    authStateDetermined = true;
+    clearTimeout(authTimeout);
+    console.warn("[v0] Auth not initialized - showing welcome screen");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =
@@ -1658,4 +1689,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show loading state initially while auth is being determined
   setLoadingUI();
+  console.log("[v0] App initialized, waiting for auth state...");
 });

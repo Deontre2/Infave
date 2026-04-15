@@ -1390,7 +1390,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const q = entrySearchInput.value.trim().toLowerCase();
     const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
-    
+
     if (sortMode === "oldest") {
       entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortMode === "most-clicks") {
@@ -1398,6 +1398,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         return bClicks - aClicks;
+      });
+    } else if (sortMode === "number") {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
+      });
+    } else {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
       });
     }
     

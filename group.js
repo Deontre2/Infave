@@ -99,6 +99,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const editButtonDraftList = document.getElementById("edit-button-draft-list");
   const saveEditCardBtn = document.getElementById("save-edit-card-btn");
 
+  // Create card modal
+  const openCreateCardModalBtn = document.getElementById("open-create-card-modal-btn");
+  const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
+  const createCardModal = document.getElementById("create-card-modal");
+  const cardGroupSelect = document.getElementById("card-group-select");
+  const cardTitleInput = document.getElementById("card-title-input");
+  const cardTypeInput = document.getElementById("card-type-input");
+  const cardDescriptionInput = document.getElementById("card-description-input");
+  const cardImageInput = document.getElementById("card-image-input");
+  const cardImagePreview = document.getElementById("card-image-preview");
+  let cardImageData = "";
+  const cardClickLimitInput = document.getElementById("card-click-limit-input");
+  const buttonDraftList = document.getElementById("button-draft-list");
+  const buttonNameInput = document.getElementById("button-name-input");
+  const buttonTypeInput = document.getElementById("button-type-input");
+  const buttonValueInput = document.getElementById("button-value-input");
+  const buttonImageInput = document.getElementById("button-image-input");
+  const buttonImagePreview = document.getElementById("button-image-preview");
+  let buttonImageData = "";
+  const addButtonBtn = document.getElementById("add-button-btn");
+  const createCardBtn = document.getElementById("create-card-btn");
+
   // Entry modal
   const entryModal = document.getElementById("entry-modal");
   const entryModalTitle = document.getElementById("entry-modal-title");
@@ -136,6 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentUserId = null;
   let isAppInitialized = false;
   let editDraftButtons = [];
+  let draftButtons = [];
   let activeCardIdForEdit = null;
   let activeCardIdForEntries = null;
   let activeEntryIdForDescription = null;
@@ -441,6 +464,81 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target === cardContextMenu) cardContextMenu.classList.add("hidden");
     });
 
+    // Create card modal
+    openCreateCardModalBtn.addEventListener("click", () => {
+      updateCreateCardLimitLabel();
+      renderGroupOptions();
+      createCardModal.classList.remove("hidden");
+    });
+    openCreateCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      updateCreateCardLimitLabel();
+      renderGroupOptions();
+      createCardModal.classList.remove("hidden");
+    }, { passive: false });
+
+    closeCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.add("hidden"));
+    closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      createCardModal.classList.add("hidden");
+    }, { passive: false });
+
+    createCardBtn.addEventListener("click", createCard);
+    createCardBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      createCard();
+    }, { passive: false });
+
+    cardTypeInput.addEventListener("change", updateCreateCardLimitLabel);
+
+    createCardModal.addEventListener("click", (e) => {
+      if (e.target === createCardModal) createCardModal.classList.add("hidden");
+    });
+
+    // Button builder for create card
+    addButtonBtn.addEventListener("click", addButtonToDraft);
+    addButtonBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      addButtonToDraft();
+    }, { passive: false });
+
+    // Card image upload
+    cardImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        cardImageData = ev.target.result;
+        if (cardImagePreview) {
+          cardImagePreview.innerHTML = `<img src="${cardImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Button image upload
+    buttonImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        buttonImageData = ev.target.result;
+        if (buttonImagePreview) {
+          buttonImagePreview.innerHTML = `<img src="${buttonImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+          buttonImagePreview.style.display = "block";
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Button type selector
+    buttonTypeInput.addEventListener("change", () => {
+      const type = buttonTypeInput.value;
+      buttonValueInput.style.display = type === "image" ? "none" : "block";
+      buttonImageInput.style.display = type === "image" ? "block" : "none";
+      buttonImagePreview.style.display = type === "image" && buttonImageData ? "block" : "none";
+    });
+
     // Search functionality
     searchInput.addEventListener("input", (e) => performSearch(e.target.value));
     clearSearchBtn.addEventListener("click", () => {
@@ -663,6 +761,147 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     return el;
+  }
+
+  // ── Create Card ────────────────────────────────────────────────────────────
+
+  function updateCreateCardLimitLabel() {
+    const createCardLimitLabel = document.getElementById("create-card-limit-label");
+    const isDatabase = cardTypeInput.value === "database";
+    if (createCardLimitLabel) {
+      createCardLimitLabel.textContent = isDatabase ? "Entry Limit (optional)" : "Click Limit (optional)";
+    }
+  }
+
+  function renderGroupOptions() {
+    cardGroupSelect.innerHTML = "";
+    const currentGroupOption = document.createElement("option");
+    currentGroupOption.textContent = currentGroup?.title || "Current Group";
+    currentGroupOption.value = groupId;
+    currentGroupOption.selected = true;
+    cardGroupSelect.appendChild(currentGroupOption);
+
+    const noneOption = document.createElement("option");
+    noneOption.textContent = "No group";
+    noneOption.value = "";
+    cardGroupSelect.appendChild(noneOption);
+
+    if (state.groups.length === 0) {
+      return;
+    }
+
+    state.groups.forEach((group) => {
+      if (group.id !== groupId) {
+        const option = document.createElement("option");
+        option.value = group.id;
+        option.textContent = group.title;
+        cardGroupSelect.appendChild(option);
+      }
+    });
+  }
+
+  function addButtonToDraft() {
+    const name = buttonNameInput.value.trim();
+    const type = buttonTypeInput.value;
+    const value = buttonValueInput.value.trim();
+
+    if (!name) {
+      alert("Button name is required.");
+      return;
+    }
+
+    if (type === "link" && !value) {
+      alert("Please add a URL value for link button.");
+      return;
+    }
+
+    if (type === "image" && !buttonImageData) {
+      alert("Please upload an image for the image button.");
+      return;
+    }
+
+    const buttonValue = type === "image" ? buttonImageData : value;
+    draftButtons.push({
+      id: uid("btn"),
+      name,
+      type,
+      value: buttonValue,
+      clickCount: 0,
+    });
+
+    buttonTypeInput.value = "label";
+    buttonValueInput.style.display = "block";
+    buttonImageInput.style.display = "none";
+    buttonImagePreview.style.display = "none";
+    buttonImageData = "";
+    buttonImageInput.value = "";
+    buttonImagePreview.innerHTML = "";
+    buttonNameInput.value = "";
+    buttonValueInput.value = "";
+    renderDraftButtons();
+  }
+
+  function removeDraftButton(buttonId) {
+    draftButtons = draftButtons.filter((x) => x.id !== buttonId);
+    renderDraftButtons();
+  }
+
+  function renderDraftButtons() {
+    buttonDraftList.innerHTML = "";
+    draftButtons.forEach((btn) => {
+      const li = document.createElement("li");
+      li.className = "chip-row";
+      li.innerHTML = `
+        <span class="chip">${btn.name} (${btn.type})</span>
+        <button class="inline-btn danger-btn" data-remove-draft-id="${btn.id}" type="button">Remove</button>
+      `;
+      buttonDraftList.appendChild(li);
+    });
+    buttonDraftList.querySelectorAll("[data-remove-draft-id]").forEach((el) => {
+      el.addEventListener("click", () => removeDraftButton(el.getAttribute("data-remove-draft-id")));
+    });
+  }
+
+  async function createCard() {
+    const selectedGroupId = cardGroupSelect.value;
+    const title = cardTitleInput.value.trim();
+    const cardType = cardTypeInput.value;
+
+    if (!title) {
+      alert("Card title is required.");
+      return;
+    }
+
+    const clickLimitValue = cardClickLimitInput.value.trim();
+    state.cards.unshift({
+      id: uid("card"),
+      groupId: selectedGroupId || null,
+      title,
+      cardType,
+      description: cardDescriptionInput.value.trim(),
+      imageUrl: cardImageData,
+      clickLimit: clickLimitValue ? parseInt(clickLimitValue, 10) : null,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      clicks: 0,
+      clickHistory: [],
+      buttons: draftButtons,
+      entries: [],
+    });
+
+    draftButtons = [];
+    cardTitleInput.value = "";
+    cardTypeInput.value = "standard";
+    cardDescriptionInput.value = "";
+    cardImageInput.value = "";
+    cardImageData = "";
+    cardClickLimitInput.value = "";
+    if (cardImagePreview) cardImagePreview.innerHTML = "";
+    renderDraftButtons();
+
+    await saveStateToFirestore();
+    renderGroupPage();
+    createCardModal.classList.add("hidden");
   }
 
   // ── Click tracking ─────────────────────────────────────────────────────────
@@ -1013,6 +1252,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         return bClicks - aClicks;
+      });
+    } else if (sortMode === "number") {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
+      });
+    } else {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
       });
     }
     entryList.innerHTML = "";

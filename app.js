@@ -32,6 +32,31 @@ import {
   collection,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// Global error handler to catch any uncaught errors and ensure UI doesn't get stuck
+window.addEventListener("error", (event) => {
+  console.error("[v0] Global error caught:", event.error);
+  const loadingScreen = document.getElementById("loading-screen");
+  const welcomeScreen = document.getElementById("welcome-screen");
+  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
+    loadingScreen.classList.add("hidden");
+    if (welcomeScreen) {
+      welcomeScreen.classList.remove("hidden");
+    }
+  }
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("[v0] Unhandled promise rejection:", event.reason);
+  const loadingScreen = document.getElementById("loading-screen");
+  const welcomeScreen = document.getElementById("welcome-screen");
+  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
+    loadingScreen.classList.add("hidden");
+    if (welcomeScreen) {
+      welcomeScreen.classList.remove("hidden");
+    }
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   console.log("[v0] DOMContentLoaded fired - starting app initialization");
   const STORAGE_KEY = "labeled-clicks-state-v2";
@@ -1607,15 +1632,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Track if auth state has been determined
   let authStateDetermined = false;
-  console.log("[v0] Setting up auth timeout fallback...");
+  let authTimeout;
   
-  // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
-  const authTimeout = setTimeout(() => {
-    if (!authStateDetermined) {
-      console.warn("[v0] Auth state timeout - showing welcome screen");
-      setSignedOutUI();
-    }
-  }, 5000);
+  try {
+    console.log("[v0] Setting up auth timeout fallback...");
+    
+    // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
+    authTimeout = setTimeout(() => {
+      if (!authStateDetermined) {
+        console.warn("[v0] Auth state timeout - showing welcome screen");
+        setSignedOutUI();
+      }
+    }, 5000);
+  } catch (timeoutErr) {
+    console.error("[v0] Error setting up timeout:", timeoutErr);
+    setSignedOutUI();
+  }
 
   if (auth) {
     const provider = new GoogleAuthProvider();

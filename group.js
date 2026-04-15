@@ -131,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryModalTitle = document.getElementById("entry-modal-title");
   const closeEntryModalBtn = document.getElementById("close-entry-modal-btn");
   const entrySearchInput = document.getElementById("entry-search-input");
+  const entrySortSelect = document.getElementById("entry-sort-select");
   const copyAllEntriesBtn = document.getElementById("copy-all-entries-btn");
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
@@ -570,9 +571,10 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       copyAllEntries();
     }, { passive: false });
-    entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
-    entrySearchInput.addEventListener("input", renderEntryList);
-    entryModal.addEventListener("click", (e) => {
+  entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
+  entrySearchInput.addEventListener("input", renderEntryList);
+  entrySortSelect.addEventListener("change", renderEntryList);
+  entryModal.addEventListener("click", (e) => {
       if (e.target === entryModal) closeEntryModal();
     });
 
@@ -1343,15 +1345,29 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
+    const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
     
-    // Always sort by entry number to respect manual ordering
-    entries.sort((a, b) => {
-      const numA = a.number ?? Infinity;
-      const numB = b.number ?? Infinity;
-      if (numA !== numB) return numA - numB;
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    });
+    // Sort based on selected mode
+    if (sortMode === "oldest") {
+      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortMode === "newest") {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sortMode === "most-clicks") {
+      entries.sort((a, b) => {
+        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        return bClicks - aClicks;
+      });
+    } else {
+      // Default "by-number" - sort by entry number (respects manual reordering)
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        if (numA !== numB) return numA - numB;
+        return new Date(a.createdAt) - new Date(b.createdAt);
+      });
+    }
     
     entryList.innerHTML = "";
     if (entries.length === 0) {

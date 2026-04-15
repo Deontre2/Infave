@@ -1405,26 +1405,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const numB = b.number ?? Infinity;
         return numA - numB;
       });
-    } else {
-      entries.sort((a, b) => {
-        const numA = a.number ?? Infinity;
-        const numB = b.number ?? Infinity;
-        return numA - numB;
-      });
-    }
-    
-    entryList.innerHTML = "";
-    if (entries.length === 0) {
-      entryList.innerHTML = `<p class="muted">No entries found.</p>`;
-      return;
-    }
-    entries.forEach((entry) => {
-      const displayNum = numberMap.get(entry.id);
-      const entryButtons = (entry.buttons || []).map((b, idx) =>
-        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
-      ).join("");
-      const row = document.createElement("div");
-      row.className = "entry-row";
+      } else if (sortMode === "newest") {
+        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      } else {
+        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       row.innerHTML = `
         <div class="entry-row-header">
           <strong>${displayNum}. ${escapeHtml(entry.label)}</strong>

@@ -774,6 +774,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderGroupOptions() {
+    const currentGroup = getGroup();
     cardGroupSelect.innerHTML = "";
     const currentGroupOption = document.createElement("option");
     currentGroupOption.textContent = currentGroup?.title || "Current Group";
@@ -1259,12 +1260,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const numB = b.number ?? Infinity;
         return numA - numB;
       });
+    } else if (sortMode === "newest") {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     } else {
-      entries.sort((a, b) => {
-        const numA = a.number ?? Infinity;
-        const numB = b.number ?? Infinity;
-        return numA - numB;
-      });
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
     entryList.innerHTML = "";
     if (entries.length === 0) {

@@ -1419,6 +1419,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function reorderEntriesAfterNumberChange(card, changedEntryId, newNumber) {
+    console.log("[v0] reorderEntriesAfterNumberChange called", { changedEntryId, newNumber });
+    console.log("[v0] Before reorder:", card.entries.map(e => ({ id: e.id, label: e.label, number: e.number })));
+    
     // Get all entries sorted by their current order
     const sorted = [...card.entries].sort((a, b) => {
       const numA = a.number ?? Infinity;
@@ -1439,6 +1442,8 @@ document.addEventListener("DOMContentLoaded", () => {
     otherEntries.forEach((e, idx) => {
       e.number = idx + 1;
     });
+    
+    console.log("[v0] After reorder:", card.entries.map(e => ({ id: e.id, label: e.label, number: e.number })));
   }
 
   function renumberAllEntries(card) {
@@ -1461,15 +1466,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
+    const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
     
-    // Always sort by entry number to respect manual ordering
-    entries.sort((a, b) => {
-      const numA = a.number ?? Infinity;
-      const numB = b.number ?? Infinity;
-      if (numA !== numB) return numA - numB;
-      return new Date(a.createdAt) - new Date(b.createdAt);
-    });
+    // Sort based on selected mode
+    if (sortMode === "oldest") {
+      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortMode === "most-clicks") {
+      entries.sort((a, b) => {
+        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        return bClicks - aClicks;
+      });
+    } else {
+      // Default "newest" - sort by entry number (respects manual reordering)
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        if (numA !== numB) return numA - numB;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
     
     entryList.innerHTML = "";
     if (entries.length === 0) {

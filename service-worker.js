@@ -1,4 +1,4 @@
-const CACHE_NAME = 'infave-v3';
+const CACHE_NAME = 'infave-v4';
 const urlsToCache = [
   '/Infave/',
   '/Infave/index.html',

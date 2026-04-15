@@ -180,13 +180,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   try {
-    console.log("[v0] Initializing Firebase with config:", firebaseConfig);
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
-    console.log("[v0] Firebase initialized successfully, auth:", !!auth, "db:", !!db);
   } catch (err) {
-    console.error("[v0] Firebase initialization failed:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
@@ -1607,17 +1604,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const provider = new GoogleAuthProvider();
 
     signInBtn.addEventListener("click", async () => {
-      console.log("[v0] Sign in button clicked");
       authHint.textContent = "";
       setLoadingUI(); // Show loading immediately when signing in
       try {
-        console.log("[v0] Calling signInWithPopup...");
         await signInWithPopup(auth, provider);
-        console.log("[v0] signInWithPopup completed successfully");
       } catch (err) {
-        console.error("[v0] Sign-in failed:", err?.code, err?.message);
-        authHint.textContent = err?.message || "Sign-in failed. Please try again.";
-        authHint.style.color = "#b91c1c";
+        // Provide user-friendly error messages for common Firebase auth errors
+        let errorMessage = "Sign-in failed. Please try again.";
+        const errorCode = err?.code || "";
+        
+        if (errorCode === "auth/unauthorized-domain") {
+          errorMessage = "This domain is not authorized. Please add it in Firebase Console > Authentication > Settings > Authorized domains.";
+        } else if (errorCode === "auth/popup-blocked") {
+          errorMessage = "Popup was blocked. Please allow popups for this site and try again.";
+        } else if (errorCode === "auth/popup-closed-by-user") {
+          errorMessage = "Sign-in was cancelled. Click the button to try again.";
+        } else if (errorCode === "auth/network-request-failed") {
+          errorMessage = "Network error. Please check your internet connection and try again.";
+        } else if (errorCode === "auth/cancelled-popup-request") {
+          errorMessage = ""; // User clicked multiple times, ignore
+        } else if (err?.message) {
+          errorMessage = err.message;
+        }
+        
+        if (errorMessage) {
+          authHint.textContent = errorMessage;
+          authHint.style.color = "#b91c1c";
+        }
         setSignedOutUI(); // Show welcome only if sign-in fails
       }
     });
@@ -1634,25 +1647,19 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    console.log("[v0] Setting up onAuthStateChanged listener");
     onAuthStateChanged(auth, async (user) => {
-      console.log("[v0] Auth state changed, user:", user ? user.email : "null");
       if (user) {
         currentUserId = user.uid;
-        console.log("[v0] User signed in, loading Firestore data...");
         await loadStateFromFirestore();
-        console.log("[v0] Firestore data loaded, setting signed-in UI");
         setSignedInUI(user);
         initAppOnce();
       } else {
-        console.log("[v0] No user, showing signed-out UI");
         currentUserId = null;
         state = defaultState();
         setSignedOutUI();
       }
     });
   } else {
-    console.log("[v0] Auth is null, Firebase not initialized properly");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =

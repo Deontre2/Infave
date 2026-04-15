@@ -1301,9 +1301,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function reorderEntriesAfterNumberChange(card, changedEntryId, newNumber) {
-    console.log("[v0] reorderEntriesAfterNumberChange called", { changedEntryId, newNumber });
-    console.log("[v0] Before reorder:", card.entries.map(e => ({ id: e.id, label: e.label, number: e.number })));
-    
     // Get all entries sorted by their current order
     const sorted = [...card.entries].sort((a, b) => {
       const numA = a.number ?? Infinity;
@@ -1324,8 +1321,6 @@ document.addEventListener("DOMContentLoaded", () => {
     otherEntries.forEach((e, idx) => {
       e.number = idx + 1;
     });
-    
-    console.log("[v0] After reorder:", card.entries.map(e => ({ id: e.id, label: e.label, number: e.number })));
   }
 
   function renumberAllEntries(card) {

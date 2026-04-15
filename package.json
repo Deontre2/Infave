@@ -1,14 +1,18 @@
 {
   "name": "clicks-project",
   "version": "1.0.0",
-  "description": "",
-  "main": "firebase-config.js",
+  "description": "Infave - Click Tracker App",
+  "main": "index.html",
   "scripts": {
+    "dev": "npx serve -p 3000",
+    "start": "npx serve -p 3000",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "devDependencies": {}
+  "type": "module",
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
 }

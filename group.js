@@ -110,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
   const createCardModal = document.getElementById("create-card-modal");
   const cardGroupSelect = document.getElementById("card-group-select");
+  const createCardAssignedGroupLabel = document.getElementById("create-card-assigned-group");
   const cardTitleInput = document.getElementById("card-title-input");
   const cardTypeInput = document.getElementById("card-type-input");
   const cardDescriptionInput = document.getElementById("card-description-input");
@@ -482,6 +483,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderGroupOptions();
       createCardModal.classList.remove("hidden");
     }, { passive: false });
+    cardGroupSelect.addEventListener("change", updateCreateCardGroupLabel);
 
     closeCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.add("hidden"));
     closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
@@ -779,6 +781,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function updateCreateCardGroupLabel() {
+    if (!createCardAssignedGroupLabel || !cardGroupSelect) return;
+    const selectedGroupId = cardGroupSelect.value;
+    if (!selectedGroupId) {
+      createCardAssignedGroupLabel.textContent = "Assigned to: No group";
+      return;
+    }
+    const selectedGroup = state.groups.find((group) => group.id === selectedGroupId) || getGroup();
+    createCardAssignedGroupLabel.textContent = `Assigned to: ${selectedGroup?.title || "Current Group"}`;
+  }
+
   function renderGroupOptions() {
     const currentGroup = getGroup();
     cardGroupSelect.innerHTML = "";
@@ -794,6 +807,7 @@ document.addEventListener("DOMContentLoaded", () => {
     cardGroupSelect.appendChild(noneOption);
 
     if (state.groups.length === 0) {
+      updateCreateCardGroupLabel();
       return;
     }
 
@@ -805,6 +819,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cardGroupSelect.appendChild(option);
       }
     });
+    updateCreateCardGroupLabel();
   }
 
   function addButtonToDraft() {

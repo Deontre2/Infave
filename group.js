@@ -17,7 +17,14 @@ import {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then((registrations) => {
-      registrations.forEach((registration) => registration.unregister());
+      const hadController = !!navigator.serviceWorker.controller;
+      return Promise.all(registrations.map((registration) => registration.unregister()))
+        .then(() => {
+          if (hadController && !sessionStorage.getItem('swReloaded')) {
+            sessionStorage.setItem('swReloaded', '1');
+            window.location.reload();
+          }
+        });
     })
     .catch((err) => console.warn('Service worker unregister failed:', err));
 }

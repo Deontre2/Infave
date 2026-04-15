@@ -1,10 +1,17 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-// Unregister any existing service workers so stale cached versions cannot keep the app stuck on the welcome page
+// Unregister any existing service workers and reload once if the page is still controlled by an old SW.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
     .then((registrations) => {
-      registrations.forEach((registration) => registration.unregister());
+      const hadController = !!navigator.serviceWorker.controller;
+      return Promise.all(registrations.map((registration) => registration.unregister()))
+        .then(() => {
+          if (hadController && !sessionStorage.getItem('swReloaded')) {
+            sessionStorage.setItem('swReloaded', '1');
+            window.location.reload();
+          }
+        });
     })
     .catch((err) => console.warn('Service worker unregister failed:', err));
 }

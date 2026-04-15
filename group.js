@@ -14,12 +14,6 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(reg => console.log('Service Worker registered'))
-    .catch(err => console.log('Service Worker registration failed:', err));
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const STATE_VERSION = 2;

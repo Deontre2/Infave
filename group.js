@@ -104,6 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryModalTitle = document.getElementById("entry-modal-title");
   const closeEntryModalBtn = document.getElementById("close-entry-modal-btn");
   const entrySearchInput = document.getElementById("entry-search-input");
+  const entrySortSelect = document.getElementById("entry-sort-select");
   const copyAllEntriesBtn = document.getElementById("copy-all-entries-btn");
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
@@ -114,6 +115,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
+  const editEntryLabelInput = document.getElementById("edit-entry-label-input");
+  const editEntryPositionInput = document.getElementById("edit-entry-position-input");
 
   // Image modal
   const imageModal = document.getElementById("image-modal");
@@ -395,6 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, { passive: false });
     entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
     entrySearchInput.addEventListener("input", renderEntryList);
+    entrySortSelect.addEventListener("change", renderEntryList);
     entryModal.addEventListener("click", (e) => {
       if (e.target === entryModal) closeEntryModal();
     });
@@ -721,4 +725,492 @@ document.addEventListener("DOMContentLoaded", () => {
     editGroupTitleInput.value = "";
     editGroupDescriptionInput.value = "";
     editGroupCoverData = "";
-    editG 
+    editGroupCoverInput.value = "";
+    editGroupClickLimitInput.value = "";
+    if (editGroupCoverPreview) editGroupCoverPreview.innerHTML = "";
+    editGroupModal.classList.add("hidden");
+  }
+
+  async function saveEditedGroup() {
+    const group = getGroup();
+    if (!group) return;
+    const title = editGroupTitleInput.value.trim();
+    if (!title) { alert("Group title is required."); return; }
+    const clickLimitValue = editGroupClickLimitInput.value.trim();
+    group.title = title;
+    group.description = editGroupDescriptionInput.value.trim();
+    group.coverUrl = editGroupCoverData || group.coverUrl;
+    group.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
+    group.updatedAt = nowIso();
+    await saveStateToFirestore();
+    renderGroupPage();
+    closeEditGroupModal();
+  }
+
+  function isGroupAtLimit() {
+    const group = getGroup();
+    if (!group || !group.clickLimit) return false;
+    return groupTotalClicks() >= group.clickLimit;
+  }
+
+  function renderEditGroupOptions(selectedGroupId = "") {
+    editCardGroupSelect.innerHTML = "";
+    const noneOption = document.createElement("option");
+    noneOption.textContent = "No group";
+    noneOption.value = "";
+    if (!selectedGroupId) noneOption.selected = true;
+    editCardGroupSelect.appendChild(noneOption);
+    state.groups.forEach((group) => {
+      const option = document.createElement("option");
+      option.value = group.id;
+      option.textContent = group.title;
+      if (group.id === selectedGroupId) option.selected = true;
+      editCardGroupSelect.appendChild(option);
+    });
+  }
+
+  function addEditDraftButton() {
+    const name = editButtonNameInput.value.trim();
+    const type = editButtonTypeInput.value;
+    const value = editButtonValueInput.value.trim();
+    if (!name) { alert("Button name is required."); return; }
+    if (editDraftButtons.some((b) => b.name.toLowerCase() === name.toLowerCase())) {
+      alert("A button with this name already exists on this card.");
+      return;
+    }
+    if (type === "link" && !value) {
+      alert("Please add a URL value for link button.");
+      return;
+    }
+    if (type === "image" && !editButtonImageData) {
+      alert("Please upload an image for the image button.");
+      return;
+    }
+    // For image, use the uploaded image data as the value
+    const buttonValue = type === "image" ? editButtonImageData : value;
+    editDraftButtons.push({ id: uid("btn"), name, type, value: buttonValue, clickCount: 0 });
+    // Reset to default type
+    editButtonTypeInput.value = "label";
+    editButtonValueInput.style.display = "block";
+    editButtonImageInput.style.display = "none";
+    editButtonImagePreview.style.display = "none";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
+    editButtonNameInput.value = "";
+    editButtonValueInput.value = "";
+    renderEditDraftButtons();
+  }
+
+  function removeEditDraftButton(buttonId) {
+    editDraftButtons = editDraftButtons.filter((x) => x.id !== buttonId);
+    renderEditDraftButtons();
+  }
+
+  function renderEditDraftButtons() {
+    editButtonDraftList.innerHTML = "";
+    editDraftButtons.forEach((btn) => {
+      const li = document.createElement("li");
+      li.className = "chip-row";
+      li.innerHTML = `
+        <span class="chip">${escapeHtml(btn.name)} (${escapeHtml(btn.type)})</span>
+        <button class="inline-btn danger-btn" data-remove-edit-draft-id="${btn.id}" type="button">Remove</button>
+      `;
+      editButtonDraftList.appendChild(li);
+    });
+    editButtonDraftList.querySelectorAll("[data-remove-edit-draft-id]").forEach((el) => {
+      el.addEventListener("click", () => removeEditDraftButton(el.getAttribute("data-remove-edit-draft-id")));
+    });
+  }
+
+  function openEditCardModal(cardId) {
+    const card = state.cards.find((c) => c.id === cardId);
+    if (!card) return;
+    activeCardIdForEdit = card.id;
+    renderEditGroupOptions(card.groupId);
+    editCardTitleInput.value = card.title || "";
+    editCardTypeInput.value = card.cardType || "standard";
+    editCardTypeInput.disabled = true;
+    editCardDescriptionInput.value = card.description || "";
+    editCardImageInput.value = "";
+    editCardImageData = "";
+    if (editCardImagePreview) {
+      if (card.imageUrl) {
+        editCardImagePreview.innerHTML = `<img src="${card.imageUrl}" style="width:100%; height:100%; object-fit:cover;">`;
+      } else {
+        editCardImagePreview.innerHTML = "";
+      }
+    }
+    editCardClickLimitInput.value = card.clickLimit || "";
+    
+    const isDatabaseCard = card.cardType === "database";
+    const editCardLimitLabel = document.getElementById("edit-card-limit-label");
+    if (editCardLimitLabel) {
+        editCardLimitLabel.textContent = isDatabaseCard ? "Entry Limit (optional)" : "Click Limit (optional)";
+    }
+    if (editCardClickLimitInput) {
+        editCardClickLimitInput.placeholder = isDatabaseCard ? "e.g., 100 - card stops creating entries at limit" : "e.g., 100 - card becomes unclickable at limit";
+    }
+
+    // Populate card info stats
+    const totalClicks = (card.clicks || 0) + (card.buttons || []).reduce((sum, b) => sum + (b.clickCount || 0), 0);
+    const entryCount = (card.entries || []).length;
+    
+    // Show/hide stats based on card type
+    if (editCardClicksRow) editCardClicksRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardWeekRow) editCardWeekRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardMonthRow) editCardMonthRow.style.display = isDatabaseCard ? "none" : "inline";
+    if (editCardEntriesRow) editCardEntriesRow.style.display = isDatabaseCard ? "inline" : "none";
+    
+    // Populate stats
+    if (editCardTotalClicks) editCardTotalClicks.textContent = totalClicks.toString();
+    if (editCardWeekClicks) editCardWeekClicks.textContent = clicksSince(card, 7).toString();
+    if (editCardMonthClicks) editCardMonthClicks.textContent = clicksSince(card, 30).toString();
+    if (editCardEntriesCount) editCardEntriesCount.textContent = entryCount.toString();
+    if (editCardCreated && card.createdAt) editCardCreated.textContent = new Date(card.createdAt).toLocaleString();
+    
+    // For database cards, show entry count in total row
+    if (isDatabaseCard && editCardTotalClicks) {
+      editCardTotalClicks.textContent = entryCount.toString() + " entries";
+    }
+    // Populate button click stats
+    if (editCardButtonStats) {
+      const buttonStatsHtml = (card.buttons || []).map((b) => 
+        `<span class="chip" style="background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:4px; font-size:0.8rem;">${escapeHtml(b.name)}: ${b.clickCount || 0}</span>`
+      ).join("");
+      editCardButtonStats.innerHTML = buttonStatsHtml || '<span class="muted" style="font-size:0.8rem;">No buttons</span>';
+    }
+    editDraftButtons = (card.buttons || []).map((button) => ({
+      id: button.id || uid("btn"),
+      name: button.name || "",
+      type: button.type || "label",
+      value: button.value || "",
+      clickCount: Number(button.clickCount || 0),
+    }));
+    editButtonNameInput.value = "";
+    editButtonTypeInput.value = "label";
+    editButtonValueInput.value = "";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
+    editButtonLinkGroup.style.display = "block";
+    editButtonImageGroup.style.display = "none";
+    renderEditDraftButtons();
+    editCardModal.classList.remove("hidden");
+  }
+
+  function closeEditCardModal() {
+    activeCardIdForEdit = null;
+    editDraftButtons = [];
+    editCardImageData = "";
+    if (editCardImagePreview) editCardImagePreview.innerHTML = "";
+    editButtonNameInput.value = "";
+    editButtonTypeInput.value = "label";
+    editButtonValueInput.value = "";
+    editButtonImageData = "";
+    editButtonImageInput.value = "";
+    editButtonImagePreview.innerHTML = "";
+    editCardModal.classList.add("hidden");
+  }
+
+  async function saveEditedCard() {
+    const card = state.cards.find((c) => c.id === activeCardIdForEdit);
+    if (!card) return;
+    const newGroupId = editCardGroupSelect.value;
+    const title = editCardTitleInput.value.trim();
+    if (!title) { alert("Card title is required."); return; }
+    // Check for duplicate card title in the target group (excluding current card)
+    const existingCard = state.cards.find((c) => c.id !== activeCardIdForEdit && c.groupId === (newGroupId || null) && c.title.toLowerCase() === title.toLowerCase());
+    if (existingCard) {
+      alert("A card with this name already exists in the target group.");
+      return;
+    }
+    const clickLimitValue = editCardClickLimitInput.value.trim();
+    card.groupId = newGroupId || null;
+    card.title = title;
+    card.cardType = editCardTypeInput.value;
+    card.description = editCardDescriptionInput.value.trim();
+    card.imageUrl = editCardImageData || card.imageUrl;
+    card.clickLimit = clickLimitValue ? parseInt(clickLimitValue, 10) : null;
+    card.buttons = editDraftButtons.map((button) => ({ ...button }));
+    card.updatedAt = nowIso();
+    await saveStateToFirestore();
+    renderGroupPage();
+    closeEditCardModal();
+  }
+
+  // ── Entry modal ────────────────────────────────────────────────────────────
+
+  function openEntryModal(cardId) {
+    activeCardIdForEntries = cardId;
+    const card = state.cards.find((c) => c.id === cardId);
+    if (!card) return;
+    entryModalTitle.textContent = `Entries: ${card.title}`;
+    entrySearchInput.value = "";
+    entryNewLabelInput.value = "";
+    entryModal.classList.remove("hidden");
+    renderEntryList();
+  }
+
+  function closeEntryModal() {
+    autoSaveEntryOnBlur();
+    entryModal.classList.add("hidden");
+    activeCardIdForEntries = null;
+    entryList.innerHTML = "";
+  }
+
+  async function autoSaveEntryOnBlur() {
+    if (!activeCardIdForEntries) return;
+    const label = entryNewLabelInput.value.trim();
+    if (!label) return;
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    if (card.clickLimit && (card.entries || []).length >= card.clickLimit) {
+      alert("This card has reached its entry limit. You cannot add more entries.");
+      return;
+    }
+    const nextNumber = card.entries.length > 0 ? Math.max(...card.entries.map(e => e.number || 0)) + 1 : 1;
+    card.entries.unshift({
+      id: uid("entry"),
+      number: nextNumber,
+      label,
+      createdAt: nowIso(),
+      description: "",
+    });
+    card.updatedAt = nowIso();
+    entryNewLabelInput.value = "";
+    await saveStateToFirestore();
+    renderEntryList();
+    renderGroupPage();
+  }
+
+  function getSortedEntries(card) {
+    const hasSortOrder = card.entries.some(e => e.sortOrder !== undefined);
+    return hasSortOrder
+      ? [...card.entries].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || new Date(a.createdAt) - new Date(b.createdAt))
+      : [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }
+
+  function buildEntryNumberMap(card) {
+    const sorted = getSortedEntries(card);
+    const map = new Map();
+    sorted.forEach((e, idx) => map.set(e.id, idx + 1));
+    return map;
+  }
+
+  function renderEntryList() {
+    if (!activeCardIdForEntries) return;
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const numberMap = buildEntryNumberMap(card);
+    const q = entrySearchInput.value.trim().toLowerCase();
+    const sortMode = entrySortSelect.value;
+    let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    if (sortMode === "oldest") {
+      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortMode === "most-clicks") {
+      entries.sort((a, b) => {
+        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        return bClicks - aClicks;
+      });
+    }
+    entryList.innerHTML = "";
+    if (entries.length === 0) {
+      entryList.innerHTML = `<p class="muted">No entries found.</p>`;
+      return;
+    }
+    entries.forEach((entry) => {
+      const displayNum = numberMap.get(entry.id);
+      const entryButtons = (entry.buttons || []).map((b, idx) =>
+        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
+      ).join("");
+      const row = document.createElement("div");
+      row.className = "entry-row";
+      row.innerHTML = `
+        <div class="entry-row-header">
+          <strong>${displayNum}. ${escapeHtml(entry.label)}</strong>
+          <span class="muted">${new Date(entry.createdAt).toLocaleString()}</span>
+        </div>
+        <div class="entry-row-actions">
+          ${entryButtons}
+          <button data-copy-entry="${entry.id}" class="inline-btn" type="button">Copy</button>
+          <button data-delete-entry="${entry.id}" class="inline-btn danger-btn" type="button">Delete</button>
+          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Edit</button>
+        </div>
+      `;
+      entryList.appendChild(row);
+    });
+    entryList.querySelectorAll("[data-copy-entry]").forEach((el) => {
+      el.addEventListener("click", () => copySingleEntry(el.getAttribute("data-copy-entry")));
+    });
+    entryList.querySelectorAll("[data-delete-entry]").forEach((el) => {
+      el.addEventListener("click", () => deleteEntry(el.getAttribute("data-delete-entry")));
+    });
+    entryList.querySelectorAll("[data-edit-entry-desc]").forEach((el) => {
+      el.addEventListener("click", () => openDescriptionModal(el.getAttribute("data-edit-entry-desc")));
+    });
+    entryList.querySelectorAll("[data-entry-btn]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const entryId = el.getAttribute("data-entry-btn");
+        const btnIdx = parseInt(el.getAttribute("data-btn-idx"), 10);
+        registerEntryButtonClick(entryId, btnIdx);
+      });
+    });
+  }
+
+  async function deleteEntry(entryId) {
+    if (!activeCardIdForEntries) return;
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    card.entries = card.entries..filter((e) => e.id !== entryId);
+    await saveStateToFirestore();
+    renderEntryList();
+  }
+
+  async function copySingleEntry(entryId) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    const displayNum = buildEntryNumberMap(card).get(entry.id);
+    await navigator.clipboard.writeText(`${displayNum}. ${entry.label} - ${new Date(entry.createdAt).toLocaleString()}`);
+  }
+
+  async function copyAllEntries() {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const numberMap = buildEntryNumberMap(card);
+    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const text = sorted
+      .map((e) => `${numberMap.get(e.id)}. ${e.label} - ${new Date(e.createdAt).toLocaleString()}`)
+      .join("\n");
+    await navigator.clipboard.writeText(text || "");
+  }
+
+  // ── Description modal ──────────────────────────────────────────────────────
+
+  function openDescriptionModal(entryId) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry) return;
+    activeEntryIdForDescription = entry.id;
+    const displayNum = buildEntryNumberMap(card).get(entry.id);
+    descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
+    editEntryLabelInput.value = entry.label;
+    editEntryPositionInput.value = displayNum;
+    editEntryPositionInput.max = card.entries.length;
+    entryDescriptionInput.value = entry.description || "";
+    descriptionModal.classList.remove("hidden");
+  }
+
+  async function saveEntryDescription() {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
+    if (!entry) return;
+    const newLabel = editEntryLabelInput.value.trim();
+    if (newLabel) entry.label = newLabel;
+    entry.description = entryDescriptionInput.value;
+    const total = card.entries.length;
+    const newPos = parseInt(editEntryPositionInput.value, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= total) {
+      const sorted = getSortedEntries(card);
+      const withoutThis = sorted.filter(e => e.id !== entry.id);
+      withoutThis.splice(newPos - 1, 0, entry);
+      withoutThis.forEach((e, idx) => { e.sortOrder = idx + 1; });
+    }
+    await saveStateToFirestore();
+    descriptionModal.classList.add("hidden");
+    renderEntryList();
+    renderGroupPage();
+  }
+
+  async function registerEntryButtonClick(entryId, buttonIndex) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry || !entry.buttons || !entry.buttons[buttonIndex]) return;
+    entry.buttons[buttonIndex].clickCount = (entry.buttons[buttonIndex].clickCount || 0) + 1;
+    await saveStateToFirestore();
+    renderEntryList();
+    renderGroupPage();
+  }
+
+  // ── Escape helpers ─────────────────────────────────────────────────────────
+
+  function escapeHtml(text) {
+    return String(text)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function escapeAttribute(text) {
+    return escapeHtml(text).replaceAll("`", "");
+  }
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+
+  if (auth) {
+    const provider = new GoogleAuthProvider();
+    signOutBtn.addEventListener("click", async () => {
+      authHint.textContent = "";
+      setLoadingUI(); // Show loading immediately when signing out
+      try {
+        await signOut(auth);
+      } catch (err) {
+        authHint.textContent = err?.message || "Sign-out failed.";
+        authHint.style.color = "#b91c1c";
+        setSignedOutUI(); // Only show welcome if sign-out fails
+      }
+    });
+    signInBtn.addEventListener("click", async () => {
+      authHint.textContent = "";
+      setLoadingUI(); // Show loading immediately when signing in
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        authHint.textContent = err?.message || "Sign-in failed. Please try again.";
+        authHint.style.color = "#b91c1c";
+        setSignedOutUI(); // Show welcome only if sign-in fails
+      }
+    });
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUserId = user.uid;
+        await loadStateFromFirestore();
+        setSignedInUI(user);
+        initAppOnce();
+      } else {
+        currentUserId = null;
+        state = { version: STATE_VERSION, groups: [], cards: [] };
+        setSignedOutUI();
+      }
+    });
+  } else {
+    setSignedOutUI();
+    signInBtn.addEventListener("click", () => {
+      authHint.textContent =
+        "Firebase isn't configured yet. Add your Firebase config first, then reload.";
+      authHint.style.color = "#b45309";
+    });
+  }
+
+  // Handle page visibility changes (back button navigation)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && currentUserId) {
+      // Re-render when user comes back to ensure UI is up to date
+      const group = getGroup();
+      if (group) {
+        renderGroupPage();
+      }
+    }
+  });
+
+  // Show loading state initially while auth is being determined
+  setLoadingUI();
+});

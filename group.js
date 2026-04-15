@@ -131,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryModalTitle = document.getElementById("entry-modal-title");
   const closeEntryModalBtn = document.getElementById("close-entry-modal-btn");
   const entrySearchInput = document.getElementById("entry-search-input");
+  const entrySortSelect = document.getElementById("entry-sort-select");
   const copyAllEntriesBtn = document.getElementById("copy-all-entries-btn");
   const entryNewLabelInput = document.getElementById("entry-new-label-input");
   const entryList = document.getElementById("entry-list");
@@ -141,6 +142,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
+  const editEntryLabelInput = document.getElementById("edit-entry-label-input");
+  const editEntryPositionInput = document.getElementById("edit-entry-position-input");
 
   // Image modal
   const imageModal = document.getElementById("image-modal");
@@ -535,6 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, { passive: false });
     entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
     entrySearchInput.addEventListener("input", renderEntryList);
+    entrySortSelect.addEventListener("change", renderEntryList);
     entryModal.addEventListener("click", (e) => {
       if (e.target === entryModal) closeEntryModal();
     });
@@ -1248,8 +1252,15 @@ document.addEventListener("DOMContentLoaded", () => {
     renderGroupPage();
   }
 
+  function getSortedEntries(card) {
+    const hasSortOrder = card.entries.some(e => e.sortOrder !== undefined);
+    return hasSortOrder
+      ? [...card.entries].sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) || new Date(a.createdAt) - new Date(b.createdAt))
+      : [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }
+
   function buildEntryNumberMap(card) {
-    const sorted = [...card.entries].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    const sorted = getSortedEntries(card);
     const map = new Map();
     sorted.forEach((e, idx) => map.set(e.id, idx + 1));
     return map;
@@ -1261,7 +1272,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const numberMap = buildEntryNumberMap(card);
     const q = entrySearchInput.value.trim().toLowerCase();
-    const entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    const sortMode = entrySortSelect.value;
+    let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
+    if (sortMode === "oldest") {
+      entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortMode === "most-clicks") {
+      entries.sort((a, b) => {
+        const aClicks = (a.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
+        return bClicks - aClicks;
+      });
+    }
     entryList.innerHTML = "";
     if (entries.length === 0) {
       entryList.innerHTML = `<p class="muted">No entries found.</p>`;
@@ -1269,6 +1290,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     entries.forEach((entry) => {
       const displayNum = numberMap.get(entry.id);
+      const entryButtons = (entry.buttons || []).map((b, idx) =>
+        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
+      ).join("");
       const row = document.createElement("div");
       row.className = "entry-row";
       row.innerHTML = `
@@ -1277,9 +1301,10 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="muted">${new Date(entry.createdAt).toLocaleString()}</span>
         </div>
         <div class="entry-row-actions">
+          ${entryButtons}
           <button data-copy-entry="${entry.id}" class="inline-btn" type="button">Copy</button>
           <button data-delete-entry="${entry.id}" class="inline-btn danger-btn" type="button">Delete</button>
-          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Description</button>
+          <button data-edit-entry-desc="${entry.id}" class="inline-btn btn-secondary" type="button">Edit</button>
         </div>
       `;
       entryList.appendChild(row);
@@ -1292,6 +1317,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     entryList.querySelectorAll("[data-edit-entry-desc]").forEach((el) => {
       el.addEventListener("click", () => openDescriptionModal(el.getAttribute("data-edit-entry-desc")));
+    });
+    entryList.querySelectorAll("[data-entry-btn]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const entryId = el.getAttribute("data-entry-btn");
+        const btnIdx = parseInt(el.getAttribute("data-btn-idx"), 10);
+        registerEntryButtonClick(entryId, btnIdx);
+      });
     });
   }
 
@@ -1333,7 +1365,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!entry) return;
     activeEntryIdForDescription = entry.id;
     const displayNum = buildEntryNumberMap(card).get(entry.id);
-    descriptionModalTitle.textContent = `Description: ${displayNum}. ${entry.label}`;
+    descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
+    editEntryLabelInput.value = entry.label;
+    editEntryPositionInput.value = displayNum;
+    editEntryPositionInput.max = card.entries.length;
     entryDescriptionInput.value = entry.description || "";
     descriptionModal.classList.remove("hidden");
   }
@@ -1343,9 +1378,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
     if (!entry) return;
+    const newLabel = editEntryLabelInput.value.trim();
+    if (newLabel) entry.label = newLabel;
     entry.description = entryDescriptionInput.value;
+    const total = card.entries.length;
+    const newPos = parseInt(editEntryPositionInput.value, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= total) {
+      const sorted = getSortedEntries(card);
+      const withoutThis = sorted.filter(e => e.id !== entry.id);
+      withoutThis.splice(newPos - 1, 0, entry);
+      withoutThis.forEach((e, idx) => { e.sortOrder = idx + 1; });
+    }
     await saveStateToFirestore();
     descriptionModal.classList.add("hidden");
+    renderEntryList();
+    renderGroupPage();
+  }
+
+  async function registerEntryButtonClick(entryId, buttonIndex) {
+    const card = state.cards.find((c) => c.id === activeCardIdForEntries);
+    if (!card) return;
+    const entry = card.entries.find((e) => e.id === entryId);
+    if (!entry || !entry.buttons || !entry.buttons[buttonIndex]) return;
+    entry.buttons[buttonIndex].clickCount = (entry.buttons[buttonIndex].clickCount || 0) + 1;
+    await saveStateToFirestore();
+    renderEntryList();
+    renderGroupPage();
   }
 
   // ── Escape helpers ─────────────────────────────────────────────────────────

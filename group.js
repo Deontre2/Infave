@@ -14,6 +14,14 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => {
+      registrations.forEach((registration) => registration.unregister());
+    })
+    .catch((err) => console.warn('Service worker unregister failed:', err));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const STATE_VERSION = 2;

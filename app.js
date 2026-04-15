@@ -1,10 +1,12 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-// Register service worker for PWA
+// Unregister any existing service workers so stale cached versions cannot keep the app stuck on the welcome page
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(reg => console.log('Service Worker registered'))
-    .catch(err => console.log('Service Worker registration failed:', err));
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => {
+      registrations.forEach((registration) => registration.unregister());
+    })
+    .catch((err) => console.warn('Service worker unregister failed:', err));
 }
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";

@@ -33,6 +33,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("[v0] DOMContentLoaded fired - starting app initialization");
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const LEGACY_KEY = "cards";
   const STATE_VERSION = 2;
@@ -1606,6 +1607,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Track if auth state has been determined
   let authStateDetermined = false;
+  console.log("[v0] Setting up auth timeout fallback...");
   
   // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
   const authTimeout = setTimeout(() => {

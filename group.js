@@ -573,7 +573,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }, { passive: false });
   entryNewLabelInput.addEventListener("blur", autoSaveEntryOnBlur);
   entrySearchInput.addEventListener("input", renderEntryList);
-  entrySortSelect.addEventListener("change", renderEntryList);
+  entrySortSelect.addEventListener("change", renderEntryList); // Filter entries by sort mode
   entryModal.addEventListener("click", (e) => {
       if (e.target === entryModal) closeEntryModal();
     });

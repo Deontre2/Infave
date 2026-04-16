@@ -1602,14 +1602,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (auth) {
     const provider = new GoogleAuthProvider();
+    let authStateResolved = false;
+
+    // Show loading initially
+    setLoadingUI();
+
+    // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
+    const authTimeout = setTimeout(() => {
+      if (!authStateResolved) {
+        authStateResolved = true;
+        setSignedOutUI();
+        authHint.textContent = "Taking too long? Check your internet connection or try refreshing.";
+        authHint.style.color = "#b45309";
+      }
+    }, 5000);
 
     signInBtn.addEventListener("click", async () => {
       authHint.textContent = "";
-      setLoadingUI(); // Show loading immediately when signing in
+      setLoadingUI();
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        // Provide user-friendly error messages for common Firebase auth errors
         let errorMessage = "Sign-in failed. Please try again.";
         const errorCode = err?.code || "";
         
@@ -1622,7 +1635,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (errorCode === "auth/network-request-failed") {
           errorMessage = "Network error. Please check your internet connection and try again.";
         } else if (errorCode === "auth/cancelled-popup-request") {
-          errorMessage = ""; // User clicked multiple times, ignore
+          errorMessage = "";
         } else if (err?.message) {
           errorMessage = err.message;
         }
@@ -1631,23 +1644,25 @@ document.addEventListener("DOMContentLoaded", () => {
           authHint.textContent = errorMessage;
           authHint.style.color = "#b91c1c";
         }
-        setSignedOutUI(); // Show welcome only if sign-in fails
+        setSignedOutUI();
       }
     });
 
     signOutBtn.addEventListener("click", async () => {
       authHint.textContent = "";
-      setLoadingUI(); // Show loading immediately when signing out
+      setLoadingUI();
       try {
         await signOut(auth);
       } catch (err) {
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
-        setSignedOutUI(); // Only show welcome if sign-out fails
+        setSignedOutUI();
       }
     });
 
     onAuthStateChanged(auth, async (user) => {
+      clearTimeout(authTimeout);
+      authStateResolved = true;
       if (user) {
         currentUserId = user.uid;
         await loadStateFromFirestore();
@@ -1675,7 +1690,4 @@ document.addEventListener("DOMContentLoaded", () => {
       renderAll();
     }
   });
-
-  // Show loading state initially while auth is being determined
-  setLoadingUI();
 });

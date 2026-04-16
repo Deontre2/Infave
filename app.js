@@ -1,10 +1,19 @@
 import { firebaseConfig } from "./firebase-config.js";
 
-// Register service worker for PWA
+// Unregister any existing service workers and reload once if the page is still controlled by an old SW.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(reg => console.log('Service Worker registered'))
-    .catch(err => console.log('Service Worker registration failed:', err));
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => {
+      const hadController = !!navigator.serviceWorker.controller;
+      return Promise.all(registrations.map((registration) => registration.unregister()))
+        .then(() => {
+          if (hadController && !sessionStorage.getItem('swReloaded')) {
+            sessionStorage.setItem('swReloaded', '1');
+            window.location.reload();
+          }
+        });
+    })
+    .catch((err) => console.warn('Service worker unregister failed:', err));
 }
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -23,7 +32,33 @@ import {
   collection,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// Global error handler to catch any uncaught errors and ensure UI doesn't get stuck
+window.addEventListener("error", (event) => {
+  console.error("[v0] Global error caught:", event.error);
+  const loadingScreen = document.getElementById("loading-screen");
+  const welcomeScreen = document.getElementById("welcome-screen");
+  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
+    loadingScreen.classList.add("hidden");
+    if (welcomeScreen) {
+      welcomeScreen.classList.remove("hidden");
+    }
+  }
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  console.error("[v0] Unhandled promise rejection:", event.reason);
+  const loadingScreen = document.getElementById("loading-screen");
+  const welcomeScreen = document.getElementById("welcome-screen");
+  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
+    loadingScreen.classList.add("hidden");
+    if (welcomeScreen) {
+      welcomeScreen.classList.remove("hidden");
+    }
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("[v0] DOMContentLoaded fired - starting app initialization");
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const LEGACY_KEY = "cards";
   const STATE_VERSION = 2;
@@ -174,10 +209,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
+    console.log("[v0] Firebase initialized successfully");
   } catch (err) {
+    console.error("[v0] Firebase initialization failed:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
+    // Ensure we show the welcome screen if Firebase fails
+    setSignedOutUI();
   }
 
   function getUserDocRef() {
@@ -1390,7 +1429,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const q = entrySearchInput.value.trim().toLowerCase();
     const sortMode = entrySortSelect.value;
     let entries = card.entries.filter((e) => e.label.toLowerCase().includes(q));
-    
+
     if (sortMode === "oldest") {
       entries.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortMode === "most-clicks") {
@@ -1399,20 +1438,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         return bClicks - aClicks;
       });
-    }
-    
-    entryList.innerHTML = "";
-    if (entries.length === 0) {
-      entryList.innerHTML = `<p class="muted">No entries found.</p>`;
-      return;
-    }
-    entries.forEach((entry) => {
-      const displayNum = numberMap.get(entry.id);
-      const entryButtons = (entry.buttons || []).map((b, idx) =>
-        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
-      ).join("");
-      const row = document.createElement("div");
-      row.className = "entry-row";
+    } else if (sortMode === "number") {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
+      });
+      } else if (sortMode === "newest") {
+        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      } else {
+        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       row.innerHTML = `
         <div class="entry-row-header">
           <strong>${displayNum}. ${escapeHtml(entry.label)}</strong>
@@ -1595,6 +1630,25 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(text).replaceAll("`", "");
   }
 
+  // Track if auth state has been determined
+  let authStateDetermined = false;
+  let authTimeout;
+  
+  try {
+    console.log("[v0] Setting up auth timeout fallback...");
+    
+    // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
+    authTimeout = setTimeout(() => {
+      if (!authStateDetermined) {
+        console.warn("[v0] Auth state timeout - showing welcome screen");
+        setSignedOutUI();
+      }
+    }, 5000);
+  } catch (timeoutErr) {
+    console.error("[v0] Error setting up timeout:", timeoutErr);
+    setSignedOutUI();
+  }
+
   if (auth) {
     const provider = new GoogleAuthProvider();
 
@@ -1604,6 +1658,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
+        console.error("[v0] Sign-in error:", err);
         authHint.textContent = err?.message || "Sign-in failed. Please try again.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Show welcome only if sign-in fails
@@ -1616,6 +1671,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signOut(auth);
       } catch (err) {
+        console.error("[v0] Sign-out error:", err);
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Only show welcome if sign-out fails
@@ -1623,11 +1679,22 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     onAuthStateChanged(auth, async (user) => {
+      authStateDetermined = true;
+      clearTimeout(authTimeout);
+      console.log("[v0] Auth state changed:", user ? "signed in" : "signed out");
+      
       if (user) {
         currentUserId = user.uid;
-        await loadStateFromFirestore();
-        setSignedInUI(user);
-        initAppOnce();
+        try {
+          await loadStateFromFirestore();
+          setSignedInUI(user);
+          initAppOnce();
+        } catch (err) {
+          console.error("[v0] Error loading user data:", err);
+          authHint.textContent = "Error loading your data. Please try refreshing the page.";
+          authHint.style.color = "#b91c1c";
+          setSignedOutUI();
+        }
       } else {
         currentUserId = null;
         state = defaultState();
@@ -1635,6 +1702,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
+    authStateDetermined = true;
+    clearTimeout(authTimeout);
+    console.warn("[v0] Auth not initialized - showing welcome screen");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =
@@ -1653,4 +1723,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show loading state initially while auth is being determined
   setLoadingUI();
+  console.log("[v0] App initialized, waiting for auth state...");
 });

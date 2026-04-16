@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body>
-  <div class="loading-screen hidden" id="loading-screen">
+  <div class="loading-screen" id="loading-screen">
     <div class="loading-spinner"></div>
     <p>Loading...</p>
   </div>
@@ -49,7 +49,7 @@
       </div>
     </header>
 
-    <section class="welcome" id="welcome-screen">
+    <section class="welcome hidden" id="welcome-screen">
       <h2>Sign in to view this group</h2>
       <p>Please sign in with Google using the button above.</p>
       <div class="hint" id="auth-hint"></div>
@@ -102,6 +102,7 @@
       <div class="entry-controls">
         <input id="entry-search-input" type="text" placeholder="Search labels">
         <select id="entry-sort-select" class="inline-btn">
+          <option value="number">Sort by Number</option>
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
           <option value="most-clicks">Most Clicks</option>
@@ -175,6 +176,7 @@
         <div class="form-group" style="flex:1;">
           <label for="card-group-select">Group (optional)</label>
           <select id="card-group-select"></select>
+          <p class="muted" id="create-card-assigned-group" style="margin-top:4px; font-size:0.9rem;">Assigned to: Current Group</p>
         </div>
         <div class="form-group" style="flex:1;">
           <label for="card-type-input">Card Type</label>
@@ -355,7 +357,6 @@
     </div>
   </div>
 
-  <script type="module" src="./app.js?v=23"></script>
   <script type="module" src="./group.js?v=25"></script>
 </body>
 </html>

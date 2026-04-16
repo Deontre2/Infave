@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body>
-  <div class="loading-screen hidden" id="loading-screen">
+  <div class="loading-screen" id="loading-screen">
     <div class="loading-spinner"></div>
     <p>Loading...</p>
   </div>
@@ -49,7 +49,7 @@
       </div>
     </header>
 
-    <section class="welcome" id="welcome-screen">
+    <section class="welcome hidden" id="welcome-screen">
       <h2>Welcome</h2>
       <p>Sign in with Google to manage groups, cards, and labeled clicks.</p>
       <div class="hint" id="auth-hint"></div>
@@ -73,6 +73,7 @@
       <div class="entry-controls">
         <input id="entry-search-input" type="text" placeholder="Search labels">
         <select id="entry-sort-select" class="inline-btn">
+          <option value="number">Sort by Number</option>
           <option value="newest">Newest</option>
           <option value="oldest">Oldest</option>
           <option value="most-clicks">Most Clicks</option>

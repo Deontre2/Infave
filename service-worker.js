@@ -1,4 +1,4 @@
-const CACHE_NAME = 'infave-v3';
+const CACHE_NAME = 'infave-v4';
 const urlsToCache = [
   '/Infave/',
   '/Infave/index.html',
@@ -33,30 +33,27 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Update cache with fresh response
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone);
-          });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Fallback to cache when offline
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached;
-          // If not in cache and offline, return offline message for HTML
-          if (event.request.destination === 'document') {
-            return new Response('Offline - Please check your connection', {
-              headers: { 'Content-Type': 'text/html' }
-            });
+  const url = new URL(event.request.url);
+  const isHtml = event.request.destination === 'document' || url.pathname.endsWith('index.html') || url.pathname.endsWith('group.html');
+  const isScript = event.request.destination === 'script' || url.pathname.endsWith('.js');
+
+  if (isHtml || isScript) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
-        });
-      })
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
 

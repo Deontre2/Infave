@@ -14,6 +14,21 @@ import {
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations()
+    .then((registrations) => {
+      const hadController = !!navigator.serviceWorker.controller;
+      return Promise.all(registrations.map((registration) => registration.unregister()))
+        .then(() => {
+          if (hadController && !sessionStorage.getItem('swReloaded')) {
+            sessionStorage.setItem('swReloaded', '1');
+            window.location.reload();
+          }
+        });
+    })
+    .catch((err) => console.warn('Service worker unregister failed:', err));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const STATE_VERSION = 2;
@@ -99,6 +114,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const editButtonDraftList = document.getElementById("edit-button-draft-list");
   const saveEditCardBtn = document.getElementById("save-edit-card-btn");
 
+  // Create card modal
+  const openCreateCardModalBtn = document.getElementById("open-create-card-modal-btn");
+  const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
+  const createCardModal = document.getElementById("create-card-modal");
+  const cardGroupSelect = document.getElementById("card-group-select");
+  const createCardAssignedGroupLabel = document.getElementById("create-card-assigned-group");
+  const cardTitleInput = document.getElementById("card-title-input");
+  const cardTypeInput = document.getElementById("card-type-input");
+  const cardDescriptionInput = document.getElementById("card-description-input");
+  const cardImageInput = document.getElementById("card-image-input");
+  const cardImagePreview = document.getElementById("card-image-preview");
+  let cardImageData = "";
+  const cardClickLimitInput = document.getElementById("card-click-limit-input");
+  const buttonDraftList = document.getElementById("button-draft-list");
+  const buttonNameInput = document.getElementById("button-name-input");
+  const buttonTypeInput = document.getElementById("button-type-input");
+  const buttonValueInput = document.getElementById("button-value-input");
+  const buttonImageInput = document.getElementById("button-image-input");
+  const buttonImagePreview = document.getElementById("button-image-preview");
+  let buttonImageData = "";
+  const addButtonBtn = document.getElementById("add-button-btn");
+  const createCardBtn = document.getElementById("create-card-btn");
+
   // Entry modal
   const entryModal = document.getElementById("entry-modal");
   const entryModalTitle = document.getElementById("entry-modal-title");
@@ -136,6 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentUserId = null;
   let isAppInitialized = false;
   let editDraftButtons = [];
+  let draftButtons = [];
   let activeCardIdForEdit = null;
   let activeCardIdForEntries = null;
   let activeEntryIdForDescription = null;
@@ -148,12 +187,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
+    console.log("[v0] Firebase initialized successfully (group page)");
   } catch (err) {
+    console.error("[v0] Firebase initialization failed (group page):", err);
     if (authHint) {
       authHint.textContent =
         "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
       authHint.style.color = "#b45309";
     }
+    // Ensure we show the welcome screen if Firebase fails
+    setSignedOutUI();
   }
 
   function nowIso() { return new Date().toISOString(); }
@@ -441,6 +484,82 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target === cardContextMenu) cardContextMenu.classList.add("hidden");
     });
 
+    // Create card modal
+    openCreateCardModalBtn.addEventListener("click", () => {
+      updateCreateCardLimitLabel();
+      renderGroupOptions();
+      createCardModal.classList.remove("hidden");
+    });
+    openCreateCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      updateCreateCardLimitLabel();
+      renderGroupOptions();
+      createCardModal.classList.remove("hidden");
+    }, { passive: false });
+    cardGroupSelect.addEventListener("change", updateCreateCardGroupLabel);
+
+    closeCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.add("hidden"));
+    closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      createCardModal.classList.add("hidden");
+    }, { passive: false });
+
+    createCardBtn.addEventListener("click", createCard);
+    createCardBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      createCard();
+    }, { passive: false });
+
+    cardTypeInput.addEventListener("change", updateCreateCardLimitLabel);
+
+    createCardModal.addEventListener("click", (e) => {
+      if (e.target === createCardModal) createCardModal.classList.add("hidden");
+    });
+
+    // Button builder for create card
+    addButtonBtn.addEventListener("click", addButtonToDraft);
+    addButtonBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      addButtonToDraft();
+    }, { passive: false });
+
+    // Card image upload
+    cardImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        cardImageData = ev.target.result;
+        if (cardImagePreview) {
+          cardImagePreview.innerHTML = `<img src="${cardImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Button image upload
+    buttonImageInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        buttonImageData = ev.target.result;
+        if (buttonImagePreview) {
+          buttonImagePreview.innerHTML = `<img src="${buttonImageData}" style="width:100%; height:100%; object-fit:cover;">`;
+          buttonImagePreview.style.display = "block";
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Button type selector
+    buttonTypeInput.addEventListener("change", () => {
+      const type = buttonTypeInput.value;
+      buttonValueInput.style.display = type === "image" ? "none" : "block";
+      buttonImageInput.style.display = type === "image" ? "block" : "none";
+      buttonImagePreview.style.display = type === "image" && buttonImageData ? "block" : "none";
+    });
+
     // Search functionality
     searchInput.addEventListener("input", (e) => performSearch(e.target.value));
     clearSearchBtn.addEventListener("click", () => {
@@ -663,6 +782,161 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     return el;
+  }
+
+  // ── Create Card ────────────────────────────────────────────────────────────
+
+  function updateCreateCardLimitLabel() {
+    const createCardLimitLabel = document.getElementById("create-card-limit-label");
+    const isDatabase = cardTypeInput.value === "database";
+    if (createCardLimitLabel) {
+      createCardLimitLabel.textContent = isDatabase ? "Entry Limit (optional)" : "Click Limit (optional)";
+    }
+  }
+
+  function updateCreateCardGroupLabel() {
+    if (!createCardAssignedGroupLabel || !cardGroupSelect) return;
+    const selectedGroupId = cardGroupSelect.value;
+    if (!selectedGroupId) {
+      createCardAssignedGroupLabel.textContent = "Assigned to: No group";
+      return;
+    }
+    const selectedGroup = state.groups.find((group) => group.id === selectedGroupId) || getGroup();
+    createCardAssignedGroupLabel.textContent = `Assigned to: ${selectedGroup?.title || "Current Group"}`;
+  }
+
+  function renderGroupOptions() {
+    const currentGroup = getGroup();
+    cardGroupSelect.innerHTML = "";
+    const currentGroupOption = document.createElement("option");
+    currentGroupOption.textContent = currentGroup?.title || "Current Group";
+    currentGroupOption.value = groupId;
+    currentGroupOption.selected = true;
+    cardGroupSelect.appendChild(currentGroupOption);
+
+    const noneOption = document.createElement("option");
+    noneOption.textContent = "No group";
+    noneOption.value = "";
+    cardGroupSelect.appendChild(noneOption);
+
+    if (state.groups.length === 0) {
+      updateCreateCardGroupLabel();
+      return;
+    }
+
+    state.groups.forEach((group) => {
+      if (group.id !== groupId) {
+        const option = document.createElement("option");
+        option.value = group.id;
+        option.textContent = group.title;
+        cardGroupSelect.appendChild(option);
+      }
+    });
+    updateCreateCardGroupLabel();
+  }
+
+  function addButtonToDraft() {
+    const name = buttonNameInput.value.trim();
+    const type = buttonTypeInput.value;
+    const value = buttonValueInput.value.trim();
+
+    if (!name) {
+      alert("Button name is required.");
+      return;
+    }
+
+    if (type === "link" && !value) {
+      alert("Please add a URL value for link button.");
+      return;
+    }
+
+    if (type === "image" && !buttonImageData) {
+      alert("Please upload an image for the image button.");
+      return;
+    }
+
+    const buttonValue = type === "image" ? buttonImageData : value;
+    draftButtons.push({
+      id: uid("btn"),
+      name,
+      type,
+      value: buttonValue,
+      clickCount: 0,
+    });
+
+    buttonTypeInput.value = "label";
+    buttonValueInput.style.display = "block";
+    buttonImageInput.style.display = "none";
+    buttonImagePreview.style.display = "none";
+    buttonImageData = "";
+    buttonImageInput.value = "";
+    buttonImagePreview.innerHTML = "";
+    buttonNameInput.value = "";
+    buttonValueInput.value = "";
+    renderDraftButtons();
+  }
+
+  function removeDraftButton(buttonId) {
+    draftButtons = draftButtons.filter((x) => x.id !== buttonId);
+    renderDraftButtons();
+  }
+
+  function renderDraftButtons() {
+    buttonDraftList.innerHTML = "";
+    draftButtons.forEach((btn) => {
+      const li = document.createElement("li");
+      li.className = "chip-row";
+      li.innerHTML = `
+        <span class="chip">${btn.name} (${btn.type})</span>
+        <button class="inline-btn danger-btn" data-remove-draft-id="${btn.id}" type="button">Remove</button>
+      `;
+      buttonDraftList.appendChild(li);
+    });
+    buttonDraftList.querySelectorAll("[data-remove-draft-id]").forEach((el) => {
+      el.addEventListener("click", () => removeDraftButton(el.getAttribute("data-remove-draft-id")));
+    });
+  }
+
+  async function createCard() {
+    const selectedGroupId = cardGroupSelect.value;
+    const title = cardTitleInput.value.trim();
+    const cardType = cardTypeInput.value;
+
+    if (!title) {
+      alert("Card title is required.");
+      return;
+    }
+
+    const clickLimitValue = cardClickLimitInput.value.trim();
+    state.cards.unshift({
+      id: uid("card"),
+      groupId: selectedGroupId || null,
+      title,
+      cardType,
+      description: cardDescriptionInput.value.trim(),
+      imageUrl: cardImageData,
+      clickLimit: clickLimitValue ? parseInt(clickLimitValue, 10) : null,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      clicks: 0,
+      clickHistory: [],
+      buttons: draftButtons,
+      entries: [],
+    });
+
+    draftButtons = [];
+    cardTitleInput.value = "";
+    cardTypeInput.value = "standard";
+    cardDescriptionInput.value = "";
+    cardImageInput.value = "";
+    cardImageData = "";
+    cardClickLimitInput.value = "";
+    if (cardImagePreview) cardImagePreview.innerHTML = "";
+    renderDraftButtons();
+
+    await saveStateToFirestore();
+    renderGroupPage();
+    createCardModal.classList.add("hidden");
   }
 
   // ── Click tracking ─────────────────────────────────────────────────────────
@@ -1014,6 +1288,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const bClicks = (b.buttons || []).reduce((sum, btn) => sum + (btn.clickCount || 0), 0);
         return bClicks - aClicks;
       });
+    } else if (sortMode === "number") {
+      entries.sort((a, b) => {
+        const numA = a.number ?? Infinity;
+        const numB = b.number ?? Infinity;
+        return numA - numB;
+      });
+    } else if (sortMode === "newest") {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
     entryList.innerHTML = "";
     if (entries.length === 0) {
@@ -1155,6 +1439,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Auth ───────────────────────────────────────────────────────────────────
 
+  // Track if auth state has been determined
+  let authStateDetermined = false;
+  
+  // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
+  const authTimeout = setTimeout(() => {
+    if (!authStateDetermined) {
+      console.warn("[v0] Auth state timeout (group page) - showing welcome screen");
+      setSignedOutUI();
+    }
+  }, 5000);
+
   if (auth) {
     const provider = new GoogleAuthProvider();
     signOutBtn.addEventListener("click", async () => {
@@ -1163,6 +1458,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signOut(auth);
       } catch (err) {
+        console.error("[v0] Sign-out error (group page):", err);
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Only show welcome if sign-out fails
@@ -1174,17 +1470,29 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
+        console.error("[v0] Sign-in error (group page):", err);
         authHint.textContent = err?.message || "Sign-in failed. Please try again.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Show welcome only if sign-in fails
       }
     });
     onAuthStateChanged(auth, async (user) => {
+      authStateDetermined = true;
+      clearTimeout(authTimeout);
+      console.log("[v0] Auth state changed (group page):", user ? "signed in" : "signed out");
+      
       if (user) {
         currentUserId = user.uid;
-        await loadStateFromFirestore();
-        setSignedInUI(user);
-        initAppOnce();
+        try {
+          await loadStateFromFirestore();
+          setSignedInUI(user);
+          initAppOnce();
+        } catch (err) {
+          console.error("[v0] Error loading user data (group page):", err);
+          authHint.textContent = "Error loading your data. Please try refreshing the page.";
+          authHint.style.color = "#b91c1c";
+          setSignedOutUI();
+        }
       } else {
         currentUserId = null;
         state = { version: STATE_VERSION, groups: [], cards: [] };
@@ -1192,6 +1500,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
+    authStateDetermined = true;
+    clearTimeout(authTimeout);
+    console.warn("[v0] Auth not initialized (group page) - showing welcome screen");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =
@@ -1213,4 +1524,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show loading state initially while auth is being determined
   setLoadingUI();
+  console.log("[v0] Group page initialized, waiting for auth state...");
 });

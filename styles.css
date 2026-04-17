@@ -997,6 +997,7 @@ input, textarea, .modal-content {
 }
 
 .loading-screen.hidden {
+  display: none !important;
   opacity: 0;
   pointer-events: none;
 }

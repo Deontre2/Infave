@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const welcomeScreen = document.getElementById("welcome-screen");
   const authHint = document.getElementById("auth-hint");
   const signInBtn = document.getElementById("sign-in-btn");
+  const welcomeSignInBtn = document.getElementById("welcome-sign-in-btn");
   const signOutBtn = document.getElementById("sign-out-btn");
   const appEl = document.getElementById("app");
   const authBar = document.getElementById("auth-bar");
@@ -180,13 +181,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   try {
-    console.log("[v0] Initializing Firebase app...");
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
-    console.log("[v0] Firebase initialized successfully. auth =", !!auth, "db =", !!db);
   } catch (err) {
-    console.error("[v0] Firebase initialization error:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
@@ -650,7 +648,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function setLoadingUI() {
-    console.log("[v0] setLoadingUI() called");
     welcomeScreen.classList.add("hidden");
     appEl.classList.add("hidden");
     authBar.classList.add("hidden");
@@ -658,11 +655,9 @@ document.addEventListener("DOMContentLoaded", () => {
     openCreateGroupModalBtn.classList.add("hidden");
     openCreateCardModalBtn.classList.add("hidden");
     if (loadingScreen) loadingScreen.classList.remove("hidden");
-    console.log("[v0] setLoadingUI() done - signInBtn hidden:", signInBtn.classList.contains("hidden"));
   }
 
   function setSignedOutUI() {
-    console.log("[v0] setSignedOutUI() called");
     if (loadingScreen) loadingScreen.classList.add("hidden");
     welcomeScreen.classList.remove("hidden");
     appEl.classList.add("hidden");
@@ -674,8 +669,6 @@ document.addEventListener("DOMContentLoaded", () => {
     signInBtn.classList.remove("hidden");
     openCreateGroupModalBtn.classList.add("hidden");
     openCreateCardModalBtn.classList.add("hidden");
-    console.log("[v0] setSignedOutUI() done - signInBtn visible:", !signInBtn.classList.contains("hidden"));
-    console.log("[v0] setSignedOutUI() done - signInBtn display:", window.getComputedStyle(signInBtn).display);
   }
 
   function setSignedInUI(user) {
@@ -1613,17 +1606,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (auth) {
-    console.log("[v0] Auth is available, setting up auth handlers...");
     const provider = new GoogleAuthProvider();
     let authStateResolved = false;
 
     // Show loading initially
-    console.log("[v0] Calling setLoadingUI()...");
     setLoadingUI();
 
     // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
     const authTimeout = setTimeout(() => {
-      console.log("[v0] Auth timeout triggered, authStateResolved =", authStateResolved);
       if (!authStateResolved) {
         authStateResolved = true;
         setSignedOutUI();
@@ -1632,19 +1622,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 5000);
 
-    console.log("[v0] signInBtn element:", signInBtn);
-    console.log("[v0] signInBtn classList:", signInBtn?.classList?.toString());
-    
-    signInBtn.addEventListener("click", async () => {
-      console.log("[v0] Sign-in button clicked!");
+    // Shared sign-in handler for both buttons
+    const handleSignIn = async () => {
       authHint.textContent = "";
       setLoadingUI();
       try {
-        console.log("[v0] Calling signInWithPopup...");
         await signInWithPopup(auth, provider);
-        console.log("[v0] signInWithPopup completed successfully");
       } catch (err) {
-        console.error("[v0] Sign-in error:", err);
         let errorMessage = "Sign-in failed. Please try again.";
         const errorCode = err?.code || "";
         
@@ -1668,7 +1652,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         setSignedOutUI();
       }
-    });
+    };
+
+    signInBtn.addEventListener("click", handleSignIn);
+    if (welcomeSignInBtn) {
+      welcomeSignInBtn.addEventListener("click", handleSignIn);
+    }
 
     signOutBtn.addEventListener("click", async () => {
       authHint.textContent = "";
@@ -1683,24 +1672,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     onAuthStateChanged(auth, async (user) => {
-      console.log("[v0] onAuthStateChanged fired, user =", user ? user.email : null);
       clearTimeout(authTimeout);
       authStateResolved = true;
       if (user) {
-        console.log("[v0] User is signed in:", user.uid);
         currentUserId = user.uid;
         await loadStateFromFirestore();
         setSignedInUI(user);
         initAppOnce();
       } else {
-        console.log("[v0] User is signed out, calling setSignedOutUI()");
         currentUserId = null;
         state = defaultState();
         setSignedOutUI();
       }
     });
   } else {
-    console.log("[v0] Auth is NOT available!");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =

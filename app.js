@@ -32,33 +32,7 @@ import {
   collection,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// Global error handler to catch any uncaught errors and ensure UI doesn't get stuck
-window.addEventListener("error", (event) => {
-  console.error("[v0] Global error caught:", event.error);
-  const loadingScreen = document.getElementById("loading-screen");
-  const welcomeScreen = document.getElementById("welcome-screen");
-  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
-    loadingScreen.classList.add("hidden");
-    if (welcomeScreen) {
-      welcomeScreen.classList.remove("hidden");
-    }
-  }
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  console.error("[v0] Unhandled promise rejection:", event.reason);
-  const loadingScreen = document.getElementById("loading-screen");
-  const welcomeScreen = document.getElementById("welcome-screen");
-  if (loadingScreen && !loadingScreen.classList.contains("hidden")) {
-    loadingScreen.classList.add("hidden");
-    if (welcomeScreen) {
-      welcomeScreen.classList.remove("hidden");
-    }
-  }
-});
-
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("[v0] DOMContentLoaded fired - starting app initialization");
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const LEGACY_KEY = "cards";
   const STATE_VERSION = 2;
@@ -170,10 +144,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const descriptionModal = document.getElementById("description-modal");
   const descriptionModalTitle = document.getElementById("description-modal-title");
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
+  const entryNameInput = document.getElementById("edit-entry-label-input");
+  const entryNumberInput = document.getElementById("edit-entry-position-input");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
   const entryButtonStats = document.getElementById("entry-button-stats");
-  const editEntryLabelInput = document.getElementById("edit-entry-label-input");
   const editEntryPositionInput = document.getElementById("edit-entry-position-input");
 
   const imageModal = document.getElementById("image-modal");
@@ -209,14 +184,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
-    console.log("[v0] Firebase initialized successfully");
   } catch (err) {
-    console.error("[v0] Firebase initialization failed:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
-    // Ensure we show the welcome screen if Firebase fails
-    setSignedOutUI();
   }
 
   function getUserDocRef() {
@@ -1516,13 +1487,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === entryId);
     if (!entry) return;
-    activeEntryIdForDescription = entry.id;
-    const displayNum = buildEntryNumberMap(card).get(entry.id);
-    descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
-    editEntryLabelInput.value = entry.label;
-    editEntryPositionInput.value = displayNum;
-    editEntryPositionInput.max = card.entries.length;
-    entryDescriptionInput.value = entry.description || "";
+  activeEntryIdForDescription = entry.id;
+  const displayNum = buildEntryNumberMap(card).get(entry.id);
+  descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
+  entryNameInput.value = entry.label;
+  entryNumberInput.value = displayNum;
+  entryNumberInput.max = card.entries.length;
+  entryDescriptionInput.value = entry.description || "";
     
     // Display entry button stats
     const buttonsHtml = (entry.buttons || []).map((b, idx) => 
@@ -1562,11 +1533,15 @@ document.addEventListener("DOMContentLoaded", () => {
   async function saveEntryDescription() {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
-    if (!entry) return;
-    const newLabel = editEntryLabelInput.value.trim();
-    if (newLabel) entry.label = newLabel;
-    entry.description = entryDescriptionInput.value;
+  const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
+  if (!entry) return;
+  const newLabel = entryNameInput.value.trim();
+  if (newLabel) entry.label = newLabel;
+  const newNumber = parseInt(entryNumberInput.value, 10);
+  if (!isNaN(newNumber) && newNumber > 0) {
+    reorderEntriesAfterNumberChange(card, entry.id, newNumber);
+  }
+  entry.description = entryDescriptionInput.value;
     const total = card.entries.length;
     const newPos = parseInt(editEntryPositionInput.value, 10);
     if (!isNaN(newPos) && newPos >= 1 && newPos <= total) {
@@ -1630,25 +1605,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(text).replaceAll("`", "");
   }
 
-  // Track if auth state has been determined
-  let authStateDetermined = false;
-  let authTimeout;
-  
-  try {
-    console.log("[v0] Setting up auth timeout fallback...");
-    
-    // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
-    authTimeout = setTimeout(() => {
-      if (!authStateDetermined) {
-        console.warn("[v0] Auth state timeout - showing welcome screen");
-        setSignedOutUI();
-      }
-    }, 5000);
-  } catch (timeoutErr) {
-    console.error("[v0] Error setting up timeout:", timeoutErr);
-    setSignedOutUI();
-  }
-
   if (auth) {
     const provider = new GoogleAuthProvider();
 
@@ -1658,7 +1614,6 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        console.error("[v0] Sign-in error:", err);
         authHint.textContent = err?.message || "Sign-in failed. Please try again.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Show welcome only if sign-in fails
@@ -1671,7 +1626,6 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signOut(auth);
       } catch (err) {
-        console.error("[v0] Sign-out error:", err);
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Only show welcome if sign-out fails
@@ -1679,22 +1633,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     onAuthStateChanged(auth, async (user) => {
-      authStateDetermined = true;
-      clearTimeout(authTimeout);
-      console.log("[v0] Auth state changed:", user ? "signed in" : "signed out");
-      
       if (user) {
         currentUserId = user.uid;
-        try {
-          await loadStateFromFirestore();
-          setSignedInUI(user);
-          initAppOnce();
-        } catch (err) {
-          console.error("[v0] Error loading user data:", err);
-          authHint.textContent = "Error loading your data. Please try refreshing the page.";
-          authHint.style.color = "#b91c1c";
-          setSignedOutUI();
-        }
+        await loadStateFromFirestore();
+        setSignedInUI(user);
+        initAppOnce();
       } else {
         currentUserId = null;
         state = defaultState();
@@ -1702,9 +1645,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
-    authStateDetermined = true;
-    clearTimeout(authTimeout);
-    console.warn("[v0] Auth not initialized - showing welcome screen");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =
@@ -1723,5 +1663,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show loading state initially while auth is being determined
   setLoadingUI();
-  console.log("[v0] App initialized, waiting for auth state...");
 });

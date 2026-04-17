@@ -149,7 +149,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
   const entryButtonStats = document.getElementById("entry-button-stats");
-  const editEntryPositionInput = document.getElementById("edit-entry-position-input");
 
   const imageModal = document.getElementById("image-modal");
   const fullscreenImage = document.getElementById("fullscreen-image");

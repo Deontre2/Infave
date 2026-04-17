@@ -33,6 +33,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("[v0] DOMContentLoaded fired");
   const STORAGE_KEY = "labeled-clicks-state-v2";
   const LEGACY_KEY = "cards";
   const STATE_VERSION = 2;
@@ -42,6 +43,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const signInBtn = document.getElementById("sign-in-btn");
   const welcomeSignInBtn = document.getElementById("welcome-sign-in-btn");
   const signOutBtn = document.getElementById("sign-out-btn");
+  
+  console.log("[v0] Elements found:", {
+    welcomeScreen: !!welcomeScreen,
+    signInBtn: !!signInBtn,
+    welcomeSignInBtn: !!welcomeSignInBtn
+  });
   const appEl = document.getElementById("app");
   const authBar = document.getElementById("auth-bar");
   const authName = document.getElementById("auth-name");
@@ -181,10 +188,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   try {
+    console.log("[v0] Initializing Firebase with config:", firebaseConfig);
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
+    console.log("[v0] Firebase initialized successfully, auth:", !!auth);
   } catch (err) {
+    console.error("[v0] Firebase init error:", err);
     authHint.textContent =
       "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
     authHint.style.color = "#b45309";
@@ -1605,15 +1615,19 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(text).replaceAll("`", "");
   }
 
+  console.log("[v0] Auth check - auth object exists:", !!auth);
   if (auth) {
+    console.log("[v0] Setting up auth handlers...");
     const provider = new GoogleAuthProvider();
     let authStateResolved = false;
 
     // Show loading initially
+    console.log("[v0] Calling setLoadingUI()...");
     setLoadingUI();
 
     // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
     const authTimeout = setTimeout(() => {
+      console.log("[v0] Auth timeout fired, authStateResolved:", authStateResolved);
       if (!authStateResolved) {
         authStateResolved = true;
         setSignedOutUI();
@@ -1624,11 +1638,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Shared sign-in handler for both buttons
     const handleSignIn = async () => {
+      console.log("[v0] Sign-in button clicked!");
       authHint.textContent = "";
       setLoadingUI();
       try {
+        console.log("[v0] Calling signInWithPopup...");
         await signInWithPopup(auth, provider);
+        console.log("[v0] signInWithPopup completed");
       } catch (err) {
+        console.error("[v0] Sign-in error:", err);
         let errorMessage = "Sign-in failed. Please try again.";
         const errorCode = err?.code || "";
         
@@ -1654,9 +1672,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
+    console.log("[v0] Adding click listeners to buttons...");
     signInBtn.addEventListener("click", handleSignIn);
     if (welcomeSignInBtn) {
       welcomeSignInBtn.addEventListener("click", handleSignIn);
+      console.log("[v0] welcomeSignInBtn listener added");
+    } else {
+      console.log("[v0] welcomeSignInBtn NOT found!");
     }
 
     signOutBtn.addEventListener("click", async () => {
@@ -1671,7 +1693,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
+    console.log("[v0] Setting up onAuthStateChanged listener...");
     onAuthStateChanged(auth, async (user) => {
+      console.log("[v0] onAuthStateChanged fired, user:", user ? user.email : null);
       clearTimeout(authTimeout);
       authStateResolved = true;
       if (user) {
@@ -1680,12 +1704,14 @@ document.addEventListener("DOMContentLoaded", () => {
         setSignedInUI(user);
         initAppOnce();
       } else {
+        console.log("[v0] No user, calling setSignedOutUI()");
         currentUserId = null;
         state = defaultState();
         setSignedOutUI();
       }
     });
   } else {
+    console.log("[v0] Auth is NULL - Firebase not initialized properly");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =

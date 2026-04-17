@@ -1347,7 +1347,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    card.entries = card.entries..filter((e) => e.id !== entryId);
+    card.entries = (card.entries || []).filter((e) => e.id !== entryId);
     await saveStateToFirestore();
     renderEntryList();
   }

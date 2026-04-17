@@ -40,6 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const welcomeScreen = document.getElementById("welcome-screen");
   const authHint = document.getElementById("auth-hint");
   const signInBtn = document.getElementById("sign-in-btn");
+  const welcomeSignInBtn = document.getElementById("welcome-sign-in-btn");
   const signOutBtn = document.getElementById("sign-out-btn");
   const appEl = document.getElementById("app");
   const authBar = document.getElementById("auth-bar");
@@ -1621,7 +1622,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }, 5000);
 
-    signInBtn.addEventListener("click", async () => {
+    // Shared sign-in handler for both buttons
+    const handleSignIn = async () => {
       authHint.textContent = "";
       setLoadingUI();
       try {
@@ -1650,7 +1652,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         setSignedOutUI();
       }
-    });
+    };
+
+    signInBtn.addEventListener("click", handleSignIn);
+    if (welcomeSignInBtn) {
+      welcomeSignInBtn.addEventListener("click", handleSignIn);
+    }
 
     signOutBtn.addEventListener("click", async () => {
       authHint.textContent = "";

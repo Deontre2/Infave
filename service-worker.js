@@ -1,14 +1,14 @@
-const CACHE_NAME = 'infave-v4';
+const CACHE_NAME = 'infave-v5';
 const urlsToCache = [
-  '/Infave/',
-  '/Infave/index.html',
-  '/Infave/group.html',
-  '/Infave/styles.css',
-  '/Infave/app.js',
-  '/Infave/group.js',
-  '/Infave/firebase-config.js',
-  '/Infave/manifest.json',
-  '/Infave/icon-192x192.svg'
+  './',
+  './index.html',
+  './group.html',
+  './styles.css',
+  './app.js',
+  './group.js',
+  './firebase-config.js',
+  './manifest.json',
+  './icon-192x192.svg'
 ];
 
 self.addEventListener('install', (event) => {

@@ -1437,29 +1437,67 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (auth) {
     const provider = new GoogleAuthProvider();
+    let authStateResolved = false;
+
+    // Show loading initially
+    setLoadingUI();
+
+    // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
+    const authTimeout = setTimeout(() => {
+      if (!authStateResolved) {
+        authStateResolved = true;
+        setSignedOutUI();
+        authHint.textContent = "Taking too long? Check your internet connection or try refreshing.";
+        authHint.style.color = "#b45309";
+      }
+    }, 5000);
+
     signOutBtn.addEventListener("click", async () => {
       authHint.textContent = "";
-      setLoadingUI(); // Show loading immediately when signing out
+      setLoadingUI();
       try {
         await signOut(auth);
       } catch (err) {
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
-        setSignedOutUI(); // Only show welcome if sign-out fails
+        setSignedOutUI();
       }
     });
+
     signInBtn.addEventListener("click", async () => {
       authHint.textContent = "";
-      setLoadingUI(); // Show loading immediately when signing in
+      setLoadingUI();
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        authHint.textContent = err?.message || "Sign-in failed. Please try again.";
-        authHint.style.color = "#b91c1c";
-        setSignedOutUI(); // Show welcome only if sign-in fails
+        let errorMessage = "Sign-in failed. Please try again.";
+        const errorCode = err?.code || "";
+        
+        if (errorCode === "auth/unauthorized-domain") {
+          errorMessage = "This domain is not authorized. Please add it in Firebase Console > Authentication > Settings > Authorized domains.";
+        } else if (errorCode === "auth/popup-blocked") {
+          errorMessage = "Popup was blocked. Please allow popups for this site and try again.";
+        } else if (errorCode === "auth/popup-closed-by-user") {
+          errorMessage = "Sign-in was cancelled. Click the button to try again.";
+        } else if (errorCode === "auth/network-request-failed") {
+          errorMessage = "Network error. Please check your internet connection and try again.";
+        } else if (errorCode === "auth/cancelled-popup-request") {
+          errorMessage = "";
+        } else if (err?.message) {
+          errorMessage = err.message;
+        }
+        
+        if (errorMessage) {
+          authHint.textContent = errorMessage;
+          authHint.style.color = "#b91c1c";
+        }
+        setSignedOutUI();
       }
     });
+
     onAuthStateChanged(auth, async (user) => {
+      clearTimeout(authTimeout);
+      authStateResolved = true;
       if (user) {
         currentUserId = user.uid;
         await loadStateFromFirestore();
@@ -1490,7 +1528,4 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
-
-  // Show loading state initially while auth is being determined
-  setLoadingUI();
 });

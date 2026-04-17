@@ -2,12 +2,12 @@
   "name": "Infave - Click Tracker",
   "short_name": "Infave",
   "description": "Track clicks across groups and cards",
-  "start_url": "/Infave/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
   "orientation": "portrait",
-  "scope": "/Infave/",
+  "scope": "./",
   "icons": [
     {
       "src": "icon-192x192.svg",

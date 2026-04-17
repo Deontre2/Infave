@@ -151,10 +151,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const descriptionModal = document.getElementById("description-modal");
   const descriptionModalTitle = document.getElementById("description-modal-title");
   const closeDescriptionModalBtn = document.getElementById("close-description-modal-btn");
+  const entryNameInput = document.getElementById("edit-entry-label-input");
+  const entryNumberInput = document.getElementById("edit-entry-position-input");
   const entryDescriptionInput = document.getElementById("entry-description-input");
   const saveEntryDescriptionBtn = document.getElementById("save-entry-description-btn");
-  const editEntryLabelInput = document.getElementById("edit-entry-label-input");
-  const editEntryPositionInput = document.getElementById("edit-entry-position-input");
 
   // Image modal
   const imageModal = document.getElementById("image-modal");
@@ -187,16 +187,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
     db = getFirestore(firebaseApp);
-    console.log("[v0] Firebase initialized successfully (group page)");
   } catch (err) {
-    console.error("[v0] Firebase initialization failed (group page):", err);
     if (authHint) {
       authHint.textContent =
         "Firebase isn't configured yet. Paste your Firebase config into firebase-config.js to enable Google login.";
       authHint.style.color = "#b45309";
     }
-    // Ensure we show the welcome screen if Firebase fails
-    setSignedOutUI();
   }
 
   function nowIso() { return new Date().toISOString(); }
@@ -1347,7 +1343,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    card.entries = (card.entries || []).filter((e) => e.id !== entryId);
+    card.entries = card.entries..filter((e) => e.id !== entryId);
     await saveStateToFirestore();
     renderEntryList();
   }
@@ -1379,26 +1375,26 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!card) return;
     const entry = card.entries.find((e) => e.id === entryId);
     if (!entry) return;
-    activeEntryIdForDescription = entry.id;
-    const displayNum = buildEntryNumberMap(card).get(entry.id);
-    descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
-    editEntryLabelInput.value = entry.label;
-    editEntryPositionInput.value = displayNum;
-    editEntryPositionInput.max = card.entries.length;
-    entryDescriptionInput.value = entry.description || "";
-    descriptionModal.classList.remove("hidden");
+  activeEntryIdForDescription = entry.id;
+  const displayNum = buildEntryNumberMap(card).get(entry.id);
+  descriptionModalTitle.textContent = `Edit Entry #${displayNum}`;
+  entryNameInput.value = entry.label;
+  entryNumberInput.value = displayNum;
+  entryNumberInput.max = card.entries.length;
+  entryDescriptionInput.value = entry.description || "";
+  descriptionModal.classList.remove("hidden");
   }
 
   async function saveEntryDescription() {
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
-    if (!entry) return;
-    const newLabel = editEntryLabelInput.value.trim();
-    if (newLabel) entry.label = newLabel;
-    entry.description = entryDescriptionInput.value;
-    const total = card.entries.length;
-    const newPos = parseInt(editEntryPositionInput.value, 10);
+  const entry = card.entries.find((e) => e.id === activeEntryIdForDescription);
+  if (!entry) return;
+  const newLabel = entryNameInput.value.trim();
+  if (newLabel) entry.label = newLabel;
+  entry.description = entryDescriptionInput.value;
+  const total = card.entries.length;
+  const newPos = parseInt(entryNumberInput.value, 10);
     if (!isNaN(newPos) && newPos >= 1 && newPos <= total) {
       const sorted = getSortedEntries(card);
       const withoutThis = sorted.filter(e => e.id !== entry.id);
@@ -1439,17 +1435,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ── Auth ───────────────────────────────────────────────────────────────────
 
-  // Track if auth state has been determined
-  let authStateDetermined = false;
-  
-  // Timeout fallback - if auth state isn't determined within 5 seconds, show welcome screen
-  const authTimeout = setTimeout(() => {
-    if (!authStateDetermined) {
-      console.warn("[v0] Auth state timeout (group page) - showing welcome screen");
-      setSignedOutUI();
-    }
-  }, 5000);
-
   if (auth) {
     const provider = new GoogleAuthProvider();
     signOutBtn.addEventListener("click", async () => {
@@ -1458,7 +1443,6 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signOut(auth);
       } catch (err) {
-        console.error("[v0] Sign-out error (group page):", err);
         authHint.textContent = err?.message || "Sign-out failed.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Only show welcome if sign-out fails
@@ -1470,29 +1454,17 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        console.error("[v0] Sign-in error (group page):", err);
         authHint.textContent = err?.message || "Sign-in failed. Please try again.";
         authHint.style.color = "#b91c1c";
         setSignedOutUI(); // Show welcome only if sign-in fails
       }
     });
     onAuthStateChanged(auth, async (user) => {
-      authStateDetermined = true;
-      clearTimeout(authTimeout);
-      console.log("[v0] Auth state changed (group page):", user ? "signed in" : "signed out");
-      
       if (user) {
         currentUserId = user.uid;
-        try {
-          await loadStateFromFirestore();
-          setSignedInUI(user);
-          initAppOnce();
-        } catch (err) {
-          console.error("[v0] Error loading user data (group page):", err);
-          authHint.textContent = "Error loading your data. Please try refreshing the page.";
-          authHint.style.color = "#b91c1c";
-          setSignedOutUI();
-        }
+        await loadStateFromFirestore();
+        setSignedInUI(user);
+        initAppOnce();
       } else {
         currentUserId = null;
         state = { version: STATE_VERSION, groups: [], cards: [] };
@@ -1500,9 +1472,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   } else {
-    authStateDetermined = true;
-    clearTimeout(authTimeout);
-    console.warn("[v0] Auth not initialized (group page) - showing welcome screen");
     setSignedOutUI();
     signInBtn.addEventListener("click", () => {
       authHint.textContent =
@@ -1524,5 +1493,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Show loading state initially while auth is being determined
   setLoadingUI();
-  console.log("[v0] Group page initialized, waiting for auth state...");
 });

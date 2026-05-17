@@ -3,16 +3,18 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  defaultState,
+  loadUserState,
+  saveUserState,
+} from "./state-persistence.js";
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations()
@@ -30,15 +32,13 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const STORAGE_KEY = "labeled-clicks-state-v2";
-  const STATE_VERSION = 2;
-
   const params = new URLSearchParams(window.location.search);
-  const groupId = params.get("id");
+  let groupId = (params.get("id") || sessionStorage.getItem("lastGroupId") || "").trim();
   if (!groupId) {
-    window.location.href = "./index.html";
+    window.location.replace("./index.html");
     return;
   }
+  sessionStorage.setItem("lastGroupId", groupId);
 
   // Auth / layout DOM
   const welcomeScreen = document.getElementById("welcome-screen");
@@ -52,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const authEmail = document.getElementById("auth-email");
   const authPhoto = document.getElementById("auth-photo");
   const authAvatarFallback = document.getElementById("auth-avatar-fallback");
+  const syncHint = document.getElementById("sync-hint");
   const loadingScreen = document.getElementById("loading-screen");
 
   // Group hero DOM
@@ -116,10 +117,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveEditCardBtn = document.getElementById("save-edit-card-btn");
 
   // Create card modal
+  const openCreateGroupModalBtn = document.getElementById("open-create-group-modal-btn");
   const openCreateCardModalBtn = document.getElementById("open-create-card-modal-btn");
   const closeCreateCardModalBtn = document.getElementById("close-create-card-modal-btn");
   const createCardModal = document.getElementById("create-card-modal");
-  const cardGroupSelect = document.getElementById("card-group-select");
   const createCardAssignedGroupLabel = document.getElementById("create-card-assigned-group");
   const cardTitleInput = document.getElementById("card-title-input");
   const cardTypeInput = document.getElementById("card-type-input");
@@ -182,7 +183,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let longPressTimer = null;
   let activeCardIdForContext = null;
 
-  let state = { version: STATE_VERSION, groups: [], cards: [] };
+  let state = defaultState();
+  let syncHintTimer = null;
 
   try {
     const firebaseApp = initializeApp(firebaseConfig);
@@ -199,45 +201,53 @@ document.addEventListener("DOMContentLoaded", () => {
   function nowIso() { return new Date().toISOString(); }
   function uid(prefix) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
-  function getUserDocRef() {
-    if (!db || !currentUserId) return null;
-    return doc(db, "users", currentUserId);
+  function showSyncWarning(message) {
+    if (!message) return;
+    if (syncHint) {
+      syncHint.textContent = message;
+      syncHint.classList.remove("hidden");
+      clearTimeout(syncHintTimer);
+      syncHintTimer = setTimeout(() => syncHint.classList.add("hidden"), 15000);
+    } else {
+      console.warn(message);
+    }
   }
 
   async function loadStateFromFirestore() {
-    const userDocRef = getUserDocRef();
-    if (!userDocRef) {
-      state = { version: STATE_VERSION, groups: [], cards: [] };
-      return;
-    }
-    try {
-      const snapshot = await getDoc(userDocRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data?.version === STATE_VERSION && Array.isArray(data.groups) && Array.isArray(data.cards)) {
-          state = data;
-          return;
-        }
+    const result = await loadUserState(db, currentUserId);
+    state = result.state;
+
+    if (result.shouldSyncToFirestore) {
+      const saveResult = await saveUserState(db, currentUserId, state);
+      state = saveResult.state;
+      if (saveResult.error) showSyncWarning(saveResult.error);
+    } else if (result.source === "localStorage") {
+      showSyncWarning("Loaded your saved data from this device.");
+      if (result.error) {
+        showSyncWarning(
+          "Could not load from the cloud. Your groups and cards are from this browser only until cloud sync works."
+        );
       }
-    } catch (err) {
-      console.error("Error loading from Firestore:", err);
     }
-    state = { version: STATE_VERSION, groups: [], cards: [] };
+
+    return result;
   }
 
   async function saveStateToFirestore() {
-    const userDocRef = getUserDocRef();
-    if (!userDocRef) return;
-    state.version = STATE_VERSION;
-    try {
-      await setDoc(userDocRef, state);
-    } catch (err) {
-      console.error("Error saving to Firestore:", err);
-    }
+    if (!currentUserId) return { firestoreOk: false };
+    const result = await saveUserState(db, currentUserId, state);
+    state = result.state;
+    if (result.error) showSyncWarning(result.error);
+    return result;
   }
 
   function getGroup() {
     return state.groups.find((g) => g.id === groupId) || null;
+  }
+
+  function setNavActionsVisible(visible) {
+    if (openCreateGroupModalBtn) openCreateGroupModalBtn.classList.toggle("hidden", !visible);
+    if (openCreateCardModalBtn) openCreateCardModalBtn.classList.toggle("hidden", !visible);
   }
 
   function setLoadingUI() {
@@ -245,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
     appEl.classList.add("hidden");
     authBar.classList.add("hidden");
     signInBtn.classList.add("hidden");
+    setNavActionsVisible(false);
     if (loadingScreen) loadingScreen.classList.remove("hidden");
   }
 
@@ -258,6 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
     authPhoto.classList.add("hidden");
     authAvatarFallback.classList.remove("hidden");
     signInBtn.classList.remove("hidden");
+    setNavActionsVisible(false);
   }
 
   function setSignedInUI(user) {
@@ -277,16 +289,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     signInBtn.classList.add("hidden");
     searchBar.classList.remove("hidden");
+    setNavActionsVisible(true);
   }
 
-  function initAppOnce() {
+  async function ensureGroupInState() {
+    if (getGroup()) return getGroup();
+    await loadStateFromFirestore();
+    return getGroup();
+  }
+
+  async function initAppOnce() {
     if (isAppInitialized) return;
     isAppInitialized = true;
 
-    const group = getGroup();
+    const group = await ensureGroupInState();
     if (!group) {
       appEl.classList.remove("hidden");
-      cardsContainer.innerHTML = `<p class="muted">Group not found. <a href="./index.html">← Go back</a>.</p>`;
+      groupTitleEl.textContent = "Group not found";
+      groupDescriptionEl.textContent = "";
+      cardsContainer.innerHTML = `<p class="muted">This group could not be loaded. It may not have been saved yet. <a href="./index.html">← Back to Groups</a></p>`;
       return;
     }
 
@@ -481,19 +502,26 @@ document.addEventListener("DOMContentLoaded", () => {
       if (e.target === cardContextMenu) cardContextMenu.classList.add("hidden");
     });
 
-    // Create card modal
+    if (openCreateGroupModalBtn) {
+      openCreateGroupModalBtn.addEventListener("click", () => {
+        window.location.href = "./index.html";
+      });
+      openCreateGroupModalBtn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        window.location.href = "./index.html";
+      }, { passive: false });
+    }
+
+    // Create card modal (always assigns to the current group)
     openCreateCardModalBtn.addEventListener("click", () => {
-      updateCreateCardLimitLabel();
-      renderGroupOptions();
+      prepareCreateCardModal();
       createCardModal.classList.remove("hidden");
     });
     openCreateCardModalBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
-      updateCreateCardLimitLabel();
-      renderGroupOptions();
+      prepareCreateCardModal();
       createCardModal.classList.remove("hidden");
     }, { passive: false });
-    cardGroupSelect.addEventListener("change", updateCreateCardGroupLabel);
 
     closeCreateCardModalBtn.addEventListener("click", () => createCardModal.classList.add("hidden"));
     closeCreateCardModalBtn.addEventListener("touchstart", (e) => {
@@ -791,45 +819,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function updateCreateCardGroupLabel() {
-    if (!createCardAssignedGroupLabel || !cardGroupSelect) return;
-    const selectedGroupId = cardGroupSelect.value;
-    if (!selectedGroupId) {
-      createCardAssignedGroupLabel.textContent = "Assigned to: No group";
-      return;
+  function prepareCreateCardModal() {
+    updateCreateCardLimitLabel();
+    const group = getGroup();
+    if (createCardAssignedGroupLabel) {
+      createCardAssignedGroupLabel.textContent = group
+        ? `This card will be added to: ${group.title}`
+        : "This card will be added to the current group.";
     }
-    const selectedGroup = state.groups.find((group) => group.id === selectedGroupId) || getGroup();
-    createCardAssignedGroupLabel.textContent = `Assigned to: ${selectedGroup?.title || "Current Group"}`;
-  }
-
-  function renderGroupOptions() {
-    const currentGroup = getGroup();
-    cardGroupSelect.innerHTML = "";
-    const currentGroupOption = document.createElement("option");
-    currentGroupOption.textContent = currentGroup?.title || "Current Group";
-    currentGroupOption.value = groupId;
-    currentGroupOption.selected = true;
-    cardGroupSelect.appendChild(currentGroupOption);
-
-    const noneOption = document.createElement("option");
-    noneOption.textContent = "No group";
-    noneOption.value = "";
-    cardGroupSelect.appendChild(noneOption);
-
-    if (state.groups.length === 0) {
-      updateCreateCardGroupLabel();
-      return;
-    }
-
-    state.groups.forEach((group) => {
-      if (group.id !== groupId) {
-        const option = document.createElement("option");
-        option.value = group.id;
-        option.textContent = group.title;
-        cardGroupSelect.appendChild(option);
-      }
-    });
-    updateCreateCardGroupLabel();
   }
 
   function addButtonToDraft() {
@@ -895,7 +892,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function createCard() {
-    const selectedGroupId = cardGroupSelect.value;
     const title = cardTitleInput.value.trim();
     const cardType = cardTypeInput.value;
 
@@ -904,10 +900,15 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (!getGroup()) {
+      alert("Group not found. Go back to the dashboard and open the group again.");
+      return;
+    }
+
     const clickLimitValue = cardClickLimitInput.value.trim();
     state.cards.unshift({
       id: uid("card"),
-      groupId: selectedGroupId || null,
+      groupId,
       title,
       cardType,
       description: cardDescriptionInput.value.trim(),
@@ -1344,7 +1345,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!activeCardIdForEntries) return;
     const card = state.cards.find((c) => c.id === activeCardIdForEntries);
     if (!card) return;
-    card.entries = card.entries..filter((e) => e.id !== entryId);
+    card.entries = card.entries.filter((e) => e.id !== entryId);
     await saveStateToFirestore();
     renderEntryList();
   }
@@ -1439,11 +1440,41 @@ document.addEventListener("DOMContentLoaded", () => {
   if (auth) {
     const provider = new GoogleAuthProvider();
     let authStateResolved = false;
+    let isSigningIn = false;
+
+    function setSignInButtonsDisabled(disabled) {
+      signInBtn.disabled = disabled;
+      if (welcomeSignInBtn) welcomeSignInBtn.disabled = disabled;
+    }
+
+    function showAuthError(err) {
+      let errorMessage = "Sign-in failed. Please try again.";
+      const errorCode = err?.code || "";
+
+      if (errorCode === "auth/unauthorized-domain") {
+        errorMessage =
+          "This domain is not authorized. Add it in Firebase Console → Authentication → Settings → Authorized domains (include localhost).";
+      } else if (errorCode === "auth/popup-blocked") {
+        errorMessage = "Popup was blocked. Allow popups for this site, or we will redirect you to Google.";
+      } else if (errorCode === "auth/popup-closed-by-user") {
+        errorMessage = "Sign-in was cancelled. Click the button to try again.";
+      } else if (errorCode === "auth/network-request-failed") {
+        errorMessage = "Network error. Check your internet connection and try again.";
+      } else if (errorCode === "auth/cancelled-popup-request") {
+        errorMessage = "";
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+
+      if (errorMessage) {
+        authHint.textContent = errorMessage;
+        authHint.style.color = "#b91c1c";
+      }
+    }
 
     // Show loading initially
     setLoadingUI();
 
-    // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
     const authTimeout = setTimeout(() => {
       if (!authStateResolved) {
         authStateResolved = true;
@@ -1451,7 +1482,7 @@ document.addEventListener("DOMContentLoaded", () => {
         authHint.textContent = "Taking too long? Check your internet connection or try refreshing.";
         authHint.style.color = "#b45309";
       }
-    }, 5000);
+    }, 8000);
 
     signOutBtn.addEventListener("click", async () => {
       authHint.textContent = "";
@@ -1465,35 +1496,26 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    // Shared sign-in handler for both buttons
     const handleSignIn = async () => {
-      authHint.textContent = "";
-      setLoadingUI();
+      if (isSigningIn) return;
+      isSigningIn = true;
+      setSignInButtonsDisabled(true);
+      authHint.textContent = "Opening Google sign-in…";
+      authHint.style.color = "";
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        let errorMessage = "Sign-in failed. Please try again.";
         const errorCode = err?.code || "";
-        
-        if (errorCode === "auth/unauthorized-domain") {
-          errorMessage = "This domain is not authorized. Please add it in Firebase Console > Authentication > Settings > Authorized domains.";
-        } else if (errorCode === "auth/popup-blocked") {
-          errorMessage = "Popup was blocked. Please allow popups for this site and try again.";
-        } else if (errorCode === "auth/popup-closed-by-user") {
-          errorMessage = "Sign-in was cancelled. Click the button to try again.";
-        } else if (errorCode === "auth/network-request-failed") {
-          errorMessage = "Network error. Please check your internet connection and try again.";
-        } else if (errorCode === "auth/cancelled-popup-request") {
-          errorMessage = "";
-        } else if (err?.message) {
-          errorMessage = err.message;
+        if (errorCode === "auth/popup-blocked" || errorCode === "auth/operation-not-supported-in-this-environment") {
+          authHint.textContent = "Redirecting to Google…";
+          await signInWithRedirect(auth, provider);
+          return;
         }
-        
-        if (errorMessage) {
-          authHint.textContent = errorMessage;
-          authHint.style.color = "#b91c1c";
-        }
+        showAuthError(err);
         setSignedOutUI();
+      } finally {
+        isSigningIn = false;
+        setSignInButtonsDisabled(false);
       }
     };
 
@@ -1502,18 +1524,47 @@ document.addEventListener("DOMContentLoaded", () => {
       welcomeSignInBtn.addEventListener("click", handleSignIn);
     }
 
-    onAuthStateChanged(auth, async (user) => {
+    async function applyAuthUser(user) {
       clearTimeout(authTimeout);
       authStateResolved = true;
+
       if (user) {
+        const alreadySignedIn =
+          user.uid === currentUserId && appEl && !appEl.classList.contains("hidden");
+        if (alreadySignedIn) return;
+
+        setLoadingUI();
         currentUserId = user.uid;
-        await loadStateFromFirestore();
-        setSignedInUI(user);
-        initAppOnce();
-      } else {
-        currentUserId = null;
-        state = { version: STATE_VERSION, groups: [], cards: [] };
+        try {
+          await loadStateFromFirestore();
+          setSignedInUI(user);
+          await initAppOnce();
+        } catch (err) {
+          console.error("Error loading user data:", err);
+          showSyncWarning("Signed in, but could not load your data. Try refreshing.");
+          setSignedInUI(user);
+          await initAppOnce();
+        }
+        return;
+      }
+
+      if (!currentUserId) {
         setSignedOutUI();
+        return;
+      }
+
+      currentUserId = null;
+      state = defaultState();
+      setSignedOutUI();
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      applyAuthUser(user).catch((err) => console.error("Auth state handler failed:", err));
+    });
+
+    getRedirectResult(auth).catch((err) => {
+      if (err?.code && err.code !== "auth/cancelled-popup-request") {
+        showAuthError(err);
       }
     });
   } else {

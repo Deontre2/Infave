@@ -1,4 +1,4 @@
-const CACHE_NAME = 'infave-v5';
+const CACHE_NAME = 'infave-v8';
 const urlsToCache = [
   './',
   './index.html',
@@ -7,6 +7,7 @@ const urlsToCache = [
   './app.js',
   './group.js',
   './firebase-config.js',
+  './state-persistence.js',
   './manifest.json',
   './icon-192x192.svg'
 ];

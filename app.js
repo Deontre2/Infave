@@ -20,23 +20,20 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  defaultState,
+  loadUserState,
+  saveUserState,
+} from "./state-persistence.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-  const STORAGE_KEY = "labeled-clicks-state-v2";
-  const LEGACY_KEY = "cards";
-  const STATE_VERSION = 2;
-
   const welcomeScreen = document.getElementById("welcome-screen");
   const authHint = document.getElementById("auth-hint");
   const signInBtn = document.getElementById("sign-in-btn");
@@ -48,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const authEmail = document.getElementById("auth-email");
   const authPhoto = document.getElementById("auth-photo");
   const authAvatarFallback = document.getElementById("auth-avatar-fallback");
+  const syncHint = document.getElementById("sync-hint");
   const loadingScreen = document.getElementById("loading-screen");
 
   const groupTitleInput = document.getElementById("group-title-input");
@@ -167,10 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeGroupIdForContext = null;
 
   let state = defaultState();
-
-  function defaultState() {
-    return { version: STATE_VERSION, groups: [], cards: [] };
-  }
+  let syncHintTimer = null;
 
   function uid(prefix = "id") {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
@@ -190,41 +185,44 @@ document.addEventListener("DOMContentLoaded", () => {
     authHint.style.color = "#b45309";
   }
 
-  function getUserDocRef() {
-    if (!db || !currentUserId) return null;
-    return doc(db, "users", currentUserId);
+  function showSyncWarning(message) {
+    if (!message) return;
+    if (syncHint) {
+      syncHint.textContent = message;
+      syncHint.classList.remove("hidden");
+      clearTimeout(syncHintTimer);
+      syncHintTimer = setTimeout(() => syncHint.classList.add("hidden"), 15000);
+    } else {
+      console.warn(message);
+    }
   }
 
   async function loadStateFromFirestore() {
-    const userDocRef = getUserDocRef();
-    if (!userDocRef) {
-      state = defaultState();
-      return;
-    }
-    try {
-      const snapshot = await getDoc(userDocRef);
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data?.version === STATE_VERSION && Array.isArray(data.groups) && Array.isArray(data.cards)) {
-          state = data;
-          return;
-        }
+    const result = await loadUserState(db, currentUserId);
+    state = result.state;
+
+    if (result.shouldSyncToFirestore) {
+      const saveResult = await saveUserState(db, currentUserId, state);
+      state = saveResult.state;
+      if (saveResult.error) showSyncWarning(saveResult.error);
+    } else if (result.source === "localStorage") {
+      showSyncWarning("Loaded your saved data from this device.");
+      if (result.error) {
+        showSyncWarning(
+          "Could not load from the cloud. Your groups and cards are from this browser only until cloud sync works."
+        );
       }
-    } catch (err) {
-      console.error("Error loading from Firestore:", err);
     }
-    state = defaultState();
+
+    return result;
   }
 
   async function saveStateToFirestore() {
-    const userDocRef = getUserDocRef();
-    if (!userDocRef) return;
-    state.version = STATE_VERSION;
-    try {
-      await setDoc(userDocRef, state);
-    } catch (err) {
-      console.error("Error saving to Firestore:", err);
-    }
+    if (!currentUserId) return { firestoreOk: false };
+    const result = await saveUserState(db, currentUserId, state);
+    state = result.state;
+    if (result.error) showSyncWarning(result.error);
+    return result;
   }
 
   const searchBar = document.getElementById("search-bar");
@@ -700,8 +698,14 @@ document.addEventListener("DOMContentLoaded", () => {
     renderGroups();
   }
 
+  async function openGroupPage(group) {
+    if (!group?.id) return;
+    sessionStorage.setItem("lastGroupId", group.id);
+    await saveStateToFirestore();
+    window.location.assign(`./group.html?id=${encodeURIComponent(group.id)}`);
+  }
+
   async function createGroup() {
-    document.title = "Group";
     const title = groupTitleInput.value.trim() || "Untitled Group";
     const description = groupDescriptionInput.value.trim();
     state.groups.unshift({
@@ -1108,10 +1112,30 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `;
 
+        const groupUrl = `./group.html?id=${encodeURIComponent(group.id)}`;
+        let longPressOpened = false;
+
+        // Full-card link — saves data then opens the group page
+        const openLink = document.createElement("a");
+        openLink.className = "group-card-open";
+        openLink.href = groupUrl;
+        openLink.setAttribute("aria-label", `Open ${group.title}`);
+        openLink.addEventListener("click", async (e) => {
+          e.preventDefault();
+          if (longPressOpened) {
+            longPressOpened = false;
+            return;
+          }
+          await openGroupPage(group);
+        });
+        row.appendChild(openLink);
+
         // Press and hold for context menu
         const startLongPress = (e) => {
           if (e.target.closest("button, select, input, textarea, a")) return;
+          longPressOpened = false;
           longPressTimer = setTimeout(() => {
+            longPressOpened = true;
             activeGroupIdForContext = group.id;
             groupContextMenu.classList.remove("hidden");
           }, 500);
@@ -1129,12 +1153,6 @@ document.addEventListener("DOMContentLoaded", () => {
         row.addEventListener("mouseleave", cancelLongPress);
         row.addEventListener("touchend", cancelLongPress);
         row.addEventListener("touchcancel", cancelLongPress);
-
-        // Click to open group
-        row.addEventListener("click", (event) => {
-          if (event.target.closest("button, select, input, textarea, a")) return;
-          window.location.href = `./group.html?id=${group.id}`;
-        });
 
         listEl.appendChild(row);
       });
@@ -1415,10 +1433,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const numB = b.number ?? Infinity;
         return numA - numB;
       });
-      } else if (sortMode === "newest") {
-        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      } else {
-        entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (sortMode === "newest") {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else {
+      entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    entryList.innerHTML = "";
+    if (entries.length === 0) {
+      entryList.innerHTML = `<p class="muted">No entries found.</p>`;
+      return;
+    }
+    entries.forEach((entry) => {
+      const displayNum = numberMap.get(entry.id);
+      const entryButtons = (entry.buttons || []).map((b, idx) =>
+        `<button class="inline-btn chip" data-entry-btn="${entry.id}" data-btn-idx="${idx}" type="button">${escapeHtml(b.name)} ${b.clickCount || 0}</button>`
+      ).join("");
+      const row = document.createElement("div");
+      row.className = "entry-row";
       row.innerHTML = `
         <div class="entry-row-header">
           <strong>${displayNum}. ${escapeHtml(entry.label)}</strong>
@@ -1537,13 +1568,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!entry) return;
   const newLabel = entryNameInput.value.trim();
   if (newLabel) entry.label = newLabel;
-  const newNumber = parseInt(entryNumberInput.value, 10);
-  if (!isNaN(newNumber) && newNumber > 0) {
-    reorderEntriesAfterNumberChange(card, entry.id, newNumber);
-  }
   entry.description = entryDescriptionInput.value;
     const total = card.entries.length;
-    const newPos = parseInt(editEntryPositionInput.value, 10);
+    const newPos = parseInt(entryNumberInput.value, 10);
     if (!isNaN(newPos) && newPos >= 1 && newPos <= total) {
       const sorted = getSortedEntries(card);
       const withoutThis = sorted.filter(e => e.id !== entry.id);
@@ -1608,11 +1635,42 @@ document.addEventListener("DOMContentLoaded", () => {
   if (auth) {
     const provider = new GoogleAuthProvider();
     let authStateResolved = false;
+    let isSigningIn = false;
+
+    function setSignInButtonsDisabled(disabled) {
+      signInBtn.disabled = disabled;
+      if (welcomeSignInBtn) welcomeSignInBtn.disabled = disabled;
+    }
+
+    function showAuthError(err) {
+      let errorMessage = "Sign-in failed. Please try again.";
+      const errorCode = err?.code || "";
+
+      if (errorCode === "auth/unauthorized-domain") {
+        errorMessage =
+          "This domain is not authorized. Add it in Firebase Console → Authentication → Settings → Authorized domains (include localhost).";
+      } else if (errorCode === "auth/popup-blocked") {
+        errorMessage = "Popup was blocked. Allow popups for this site, or we will redirect you to Google.";
+      } else if (errorCode === "auth/popup-closed-by-user") {
+        errorMessage = "Sign-in was cancelled. Click the button to try again.";
+      } else if (errorCode === "auth/network-request-failed") {
+        errorMessage = "Network error. Check your internet connection and try again.";
+      } else if (errorCode === "auth/cancelled-popup-request") {
+        errorMessage = "";
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+
+      if (errorMessage) {
+        authHint.textContent = errorMessage;
+        authHint.style.color = "#b91c1c";
+      }
+    }
 
     // Show loading initially
     setLoadingUI();
 
-    // Timeout fallback - if auth state doesn't resolve in 5 seconds, show welcome screen
+    // Timeout fallback - if auth state doesn't resolve in 8 seconds, show welcome screen
     const authTimeout = setTimeout(() => {
       if (!authStateResolved) {
         authStateResolved = true;
@@ -1620,37 +1678,29 @@ document.addEventListener("DOMContentLoaded", () => {
         authHint.textContent = "Taking too long? Check your internet connection or try refreshing.";
         authHint.style.color = "#b45309";
       }
-    }, 5000);
+    }, 8000);
 
     // Shared sign-in handler for both buttons
     const handleSignIn = async () => {
-      authHint.textContent = "";
-      setLoadingUI();
+      if (isSigningIn) return;
+      isSigningIn = true;
+      setSignInButtonsDisabled(true);
+      authHint.textContent = "Opening Google sign-in…";
+      authHint.style.color = "";
       try {
         await signInWithPopup(auth, provider);
       } catch (err) {
-        let errorMessage = "Sign-in failed. Please try again.";
         const errorCode = err?.code || "";
-        
-        if (errorCode === "auth/unauthorized-domain") {
-          errorMessage = "This domain is not authorized. Please add it in Firebase Console > Authentication > Settings > Authorized domains.";
-        } else if (errorCode === "auth/popup-blocked") {
-          errorMessage = "Popup was blocked. Please allow popups for this site and try again.";
-        } else if (errorCode === "auth/popup-closed-by-user") {
-          errorMessage = "Sign-in was cancelled. Click the button to try again.";
-        } else if (errorCode === "auth/network-request-failed") {
-          errorMessage = "Network error. Please check your internet connection and try again.";
-        } else if (errorCode === "auth/cancelled-popup-request") {
-          errorMessage = "";
-        } else if (err?.message) {
-          errorMessage = err.message;
+        if (errorCode === "auth/popup-blocked" || errorCode === "auth/operation-not-supported-in-this-environment") {
+          authHint.textContent = "Redirecting to Google…";
+          await signInWithRedirect(auth, provider);
+          return;
         }
-        
-        if (errorMessage) {
-          authHint.textContent = errorMessage;
-          authHint.style.color = "#b91c1c";
-        }
+        showAuthError(err);
         setSignedOutUI();
+      } finally {
+        isSigningIn = false;
+        setSignInButtonsDisabled(false);
       }
     };
 
@@ -1671,18 +1721,47 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
 
-    onAuthStateChanged(auth, async (user) => {
+    async function applyAuthUser(user) {
       clearTimeout(authTimeout);
       authStateResolved = true;
+
       if (user) {
+        const alreadySignedIn =
+          user.uid === currentUserId && appEl && !appEl.classList.contains("hidden");
+        if (alreadySignedIn) return;
+
+        setLoadingUI();
         currentUserId = user.uid;
-        await loadStateFromFirestore();
-        setSignedInUI(user);
-        initAppOnce();
-      } else {
-        currentUserId = null;
-        state = defaultState();
+        try {
+          await loadStateFromFirestore();
+          setSignedInUI(user);
+          initAppOnce();
+        } catch (err) {
+          console.error("Error loading user data:", err);
+          showSyncWarning("Signed in, but could not load your data. Try refreshing.");
+          setSignedInUI(user);
+          initAppOnce();
+        }
+        return;
+      }
+
+      if (!currentUserId) {
         setSignedOutUI();
+        return;
+      }
+
+      currentUserId = null;
+      state = defaultState();
+      setSignedOutUI();
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      applyAuthUser(user).catch((err) => console.error("Auth state handler failed:", err));
+    });
+
+    getRedirectResult(auth).catch((err) => {
+      if (err?.code && err.code !== "auth/cancelled-popup-request") {
+        showAuthError(err);
       }
     });
   } else {

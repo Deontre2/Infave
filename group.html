@@ -12,7 +12,7 @@
   <title>Group — Infave</title>
   <link rel="icon" type="image/svg+xml" href="icon-192x192.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="./styles.css?v=5">
+  <link rel="stylesheet" href="./styles.css?v=7">
 </head>
 <body>
   <div class="loading-screen hidden" id="loading-screen">
@@ -31,6 +31,7 @@
           <div class="auth-meta">
             <div class="auth-name" id="auth-name">Signed in</div>
             <div class="auth-email" id="auth-email"></div>
+            <div class="sync-hint hidden" id="sync-hint"></div>
           </div>
         </div>
         <button class="btn-secondary" id="sign-out-btn" type="button">Sign out</button>
@@ -122,24 +123,6 @@
     </div>
   </div>
 
-  <div class="modal hidden" id="create-group-modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>Create Group</h3>
-        <button id="close-create-group-modal-btn" class="danger-btn" type="button">Close</button>
-      </div>
-      <div class="form-group">
-        <label for="group-title-input">Group Title (optional)</label>
-        <input id="group-title-input" type="text" placeholder="Work, Personal...">
-      </div>
-      <div class="form-group">
-        <label for="group-description-input">Group Description</label>
-        <textarea id="group-description-input" placeholder="Describe this group..."></textarea>
-      </div>
-      <button id="create-group-btn" type="button">Create Group</button>
-    </div>
-  </div>
-
   <div class="modal hidden" id="edit-group-modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -180,9 +163,8 @@
           <div id="card-image-preview" style="margin-top:8px; max-width:200px; max-height:150px; overflow:hidden; border-radius:8px;"></div>
         </div>
         <div class="form-group" style="flex:1;">
-          <label for="card-group-select">Group (optional)</label>
-          <select id="card-group-select"></select>
-          <p class="muted" id="create-card-assigned-group" style="margin-top:4px; font-size:0.9rem;">Assigned to: Current Group</p>
+          <label>Group</label>
+          <p class="create-card-group-notice" id="create-card-assigned-group">This card will be added to the current group.</p>
         </div>
         <div class="form-group" style="flex:1;">
           <label for="card-type-input">Card Type</label>
@@ -363,6 +345,6 @@
     </div>
   </div>
 
-  <script type="module" src="./group.js?v=25"></script>
+  <script type="module" src="./group.js?v=31"></script>
 </body>
 </html>

@@ -102,6 +102,21 @@ body {
   border: 1px solid var(--border);
 }
 
+.top-actions button.hidden {
+  display: none;
+}
+
+.top-actions .primary-action {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.top-actions .secondary-action {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
 /* ── Search Bar ───────────────────────────────────────────────────────── */
 
 .search-bar {
@@ -446,6 +461,7 @@ button:active {
 }
 
 .group-card {
+  position: relative;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -455,6 +471,15 @@ button:active {
   border-radius: var(--radius);
   transition: all 0.2s ease;
   min-height: 320px;
+}
+
+.group-card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  text-decoration: none;
+  color: inherit;
 }
 
 .group-card .card-image {
@@ -871,6 +896,25 @@ button:active {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 16px;
+  align-items: center;
+}
+
+.create-card-group-notice {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sync-hint {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: #b45309;
+  max-width: 280px;
 }
 
 .group-controls select {

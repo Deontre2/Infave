@@ -4,8 +4,8 @@
   "description": "Infave - Click Tracker App",
   "main": "index.html",
   "scripts": {
-    "dev": "npx serve -p 3000",
-    "start": "npx serve -p 3000",
+    "dev": "npx serve -p 3000 -c serve.json",
+    "start": "npx serve -p 3000 -c serve.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

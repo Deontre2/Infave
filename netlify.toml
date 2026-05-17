@@ -2,7 +2,5 @@
   publish = "."
   command = ""
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# Multi-page app: index.html and group.html are separate entry points.
+# Do not use a catch-all SPA redirect — it breaks group.html navigation.
